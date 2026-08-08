@@ -1,0 +1,9 @@
+{
+  "name": "scribble-speedway",
+  "private": true,
+  "description": "Scribble Speedway — draw a racetrack with your finger, then race it. Built on gamekit.",
+  "scripts": {
+    "test": "node --test",
+    "icons": "node tools/make-icons.js"
+  }
+}

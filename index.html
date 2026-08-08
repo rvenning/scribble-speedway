@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Scribble Speedway 🏁 — Draw a Track, Then Race It</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1b2a1f">
+<meta name="description" content="Draw a racetrack with your finger, and the game turns your scribble into a real circuit — then race it against rivals, chase your family's ghost laps, and take on a new Daily Circuit every day.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scribble Speedway">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lib/gk-base.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏁</text></svg>">
+</head>
+<body>
+
+<!-- Splash -->
+<div class="screen active" id="screen-splash">
+  <div class="splash-inner">
+    <div class="splash-orbit" aria-hidden="true"><span>✏️</span><span>🏎️</span><span>🏁</span></div>
+    <h1 class="logo">SCRIBBLE<span>SPEEDWAY</span></h1>
+    <p class="tagline">Draw a racetrack with your finger. We turn it into a real circuit. Then you race it.</p>
+    <button class="btn big" id="btn-continue-as" style="display:none"></button>
+    <button class="btn big green" id="btn-start" onclick="App.play()">✏️ Start Drawing</button>
+    <button class="btn ghost" id="btn-install" style="display:none">📲 Add to Home Screen</button>
+    <p class="keys-hint">⌨️ Arrow keys to steer · ↓ to brake · P to pause</p>
+    <div class="splash-foot">
+      <span id="sync-badge">⏳ connecting…</span>
+      <button class="btn-sound iconbtn">🔊</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile picker (roster + PIN modals are rendered by GK.Profiles) -->
+<div class="screen" id="screen-profiles">
+  <header class="topbar">
+    <button class="iconbtn" onclick="App.showScreen('splash')">←</button>
+    <h2 class="grow">Who's racing?</h2>
+    <button class="btn-sound iconbtn">🔊</button>
+  </header>
+  <div class="content">
+    <div class="profile-list" id="profile-list"></div>
+  </div>
+</div>
+
+<!-- Chapter map -->
+<div class="screen" id="screen-map">
+  <header class="topbar sticky">
+    <button class="iconbtn" onclick="App.play()">👥</button>
+    <div class="map-player grow" id="map-player"></div>
+    <span class="map-stat" id="map-stars"></span>
+    <span class="map-stat" id="map-coins"></span>
+    <button class="iconbtn" onclick="App.showLeaderboard()">🏆</button>
+  </header>
+  <div class="content">
+    <button class="btn big green wide" id="btn-continue"></button>
+    <div class="row-btns3">
+      <button class="btn blue" onclick="App.showDaily()">📅 Daily</button>
+      <button class="btn blue" onclick="App.showTracks()">📓 Tracks</button>
+      <button class="btn blue" onclick="App.showGarage()">🔧 Garage</button>
+    </div>
+    <label class="assist-row">
+      <input type="checkbox" id="chk-assist" onchange="App.toggleAssist(this.checked)">
+      <span><b>🅿️ Auto-brake</b> — the car slows down for corners on its own. Turn it off to go faster.</span>
+    </label>
+    <div id="chapter-list"></div>
+  </div>
+</div>
+
+<!-- Drawing board -->
+<div class="screen" id="screen-draw">
+  <header class="gamebar">
+    <button class="iconbtn small" onclick="App.leaveDraw()">←</button>
+    <span class="hud grow" id="draw-title"></span>
+    <span class="hud" id="draw-len"></span>
+  </header>
+  <div class="draw-hint" id="draw-hint"></div>
+  <div class="game-stage" id="draw-stage">
+    <canvas id="cv-draw"></canvas>
+  </div>
+  <div class="draw-bar">
+    <button class="btn grey small" id="btn-clear" onclick="Draw.clear()">↺ Clear</button>
+    <button class="btn blue small" id="btn-auto" onclick="Draw.auto()">🎲 Draw it for me</button>
+    <button class="btn green" id="btn-race" onclick="Draw.race()" disabled>🏁 Race!</button>
+  </div>
+</div>
+
+<!-- Race -->
+<div class="screen" id="screen-game">
+  <header class="gamebar">
+    <button class="iconbtn small" onclick="Game.pause()">⏸</button>
+    <span class="hud pos" id="hud-pos"></span>
+    <span class="hud grow" id="hud-lap"></span>
+    <span class="hud" id="hud-best"></span>
+    <span class="hud time" id="hud-time">0.0</span>
+  </header>
+  <div class="game-stage" id="race-stage">
+    <canvas id="cv"></canvas>
+    <button class="brake-pedal" id="btn-brake" aria-label="Brake">🅿️</button>
+  </div>
+</div>
+
+<!-- Results -->
+<div class="screen" id="screen-results">
+  <div class="res-inner">
+    <div class="res-emoji" id="res-emoji">🏁</div>
+    <h2 class="res-title" id="res-title"></h2>
+    <div class="res-stars" id="res-stars"></div>
+    <div class="res-score" id="res-score"></div>
+    <div class="res-stats" id="res-stats"></div>
+    <p class="res-note" id="res-note"></p>
+    <p class="res-finished" id="res-finished" style="display:none">👑 Every circuit drawn and every race won. You are the Scribble Speedway champion!</p>
+    <div class="res-actions">
+      <button class="btn grey" onclick="App.showMap()">🗺️ Map</button>
+      <button class="btn" id="res-retry" style="display:none"></button>
+      <button class="btn green" id="res-next" style="display:none"></button>
+    </div>
+    <button class="btn ghost small" id="res-save" style="display:none" onclick="App.saveCurrentTrack()">📓 Save this circuit</button>
+  </div>
+</div>
+
+<!-- Daily Circuit -->
+<div class="screen" id="screen-daily">
+  <header class="topbar sticky">
+    <button class="iconbtn" onclick="App.showMap()">←</button>
+    <h2 class="grow">📅 Daily Circuit</h2>
+    <span class="map-stat" id="daily-date"></span>
+  </header>
+  <div class="content">
+    <p class="nudge">The same field of trees and rings for everybody, every day. Draw your own circuit through it, then set the best time you can. Your score is how far under par you got — par comes from the circuit you drew, so a huge loop is no disadvantage and a tiny one is no cheat.</p>
+    <div id="daily-body"></div>
+    <div class="lb-rows" id="daily-rows"></div>
+  </div>
+</div>
+
+<!-- Track Book -->
+<div class="screen" id="screen-tracks">
+  <header class="topbar sticky">
+    <button class="iconbtn" onclick="App.showMap()">←</button>
+    <h2 class="grow">📓 Track Book</h2>
+    <button class="btn small green" onclick="App.newFreeTrack()">✏️ New</button>
+  </header>
+  <div class="content">
+    <p class="nudge">Circuits your family has drawn. Race one and your best lap becomes a ghost car for everybody else.</p>
+    <div id="track-list"></div>
+  </div>
+</div>
+
+<!-- Garage -->
+<div class="screen" id="screen-garage">
+  <header class="topbar sticky">
+    <button class="iconbtn" onclick="App.showMap()">←</button>
+    <h2 class="grow">🔧 Garage</h2>
+    <span class="map-stat" id="garage-coins"></span>
+  </header>
+  <div class="content">
+    <p class="nudge">Coins come from racing. Everything you fit is permanent.</p>
+    <div class="shop-list" id="upgrade-list"></div>
+    <h3 class="sec">🎨 Paint</h3>
+    <div class="skin-grid" id="skin-list"></div>
+  </div>
+</div>
+
+<!-- Leaderboard -->
+<div class="screen" id="screen-leaderboard">
+  <header class="topbar sticky">
+    <button class="iconbtn" onclick="App.showMap()">←</button>
+    <h2 class="grow">🏆 Family Drivers</h2>
+    <button class="btn-sound iconbtn">🔊</button>
+  </header>
+  <div class="content">
+    <p class="nudge">Ranked by best Daily Circuit score.</p>
+    <div class="lb-rows" id="lb-rows"></div>
+  </div>
+</div>
+
+<!-- Pause -->
+<div class="modal" id="modal-pause">
+  <div class="sheet">
+    <h2>⏸ Paused</h2>
+    <label class="assist-row">
+      <input type="checkbox" id="chk-assist2" onchange="App.toggleAssist(this.checked)">
+      <span><b>🅿️ Auto-brake</b> — slows the car for corners on its own.</span>
+    </label>
+    <div class="row-btns2">
+      <button class="btn green" onclick="Game.resume()">▶️ Resume</button>
+      <button class="btn grey" onclick="Game.quit()">🚪 Quit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Name a saved circuit -->
+<div class="modal" id="modal-name">
+  <div class="sheet">
+    <h2>📓 Name your circuit</h2>
+    <input class="gk-input" id="track-name" maxlength="18" placeholder="Rosalie's Loop">
+    <div class="row-btns2">
+      <button class="btn grey" onclick="GK.UI.closeModal('modal-name')">Cancel</button>
+      <button class="btn green" onclick="App.confirmSaveTrack()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- gamekit (vendored from rvenning/gamekit into lib/) -->
+<script src="lib/gk-util.js"></script>
+<script src="lib/gk-audio.js"></script>
+<script src="lib/gk-ui.js"></script>
+<script src="lib/gk-storage.js"></script>
+<script src="lib/gk-profiles.js"></script>
+<script src="lib/gk-pwa.js"></script>
+<script src="lib/gk-fx.js"></script>
+<script src="lib/gk-debug.js"></script>
+<script>
+// Chunky and quick: square confetti-ish flecks for grass and gravel, a shake
+// that settles fast so the track stays readable at speed.
+const Fx = GK.Fx.configure({
+  grav: 40, poolCap: 500, shakeMax: 10, shakeDecay: 34, shape: "square",
+  burstSpeed: 120, burstSize: 2.2, textSize: 12, textDy: -28, textCap: 20,
+  font: "'Baloo 2', system-ui, sans-serif",
+});
+const Tween = GK.Tween;
+</script>
+<script src="js/firebase-config.js"></script>
+<!-- geometry and data registries -->
+<script src="js/track.js"></script>
+<script src="js/rng.js"></script>
+<script src="js/generate.js"></script>
+<script src="js/cars.js"></script>
+<script src="js/upgrades.js"></script>
+<script src="js/challenges.js"></script>
+<script src="js/ghost.js"></script>
+<!-- systems -->
+<script src="js/storage.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/game.js"></script>
+<script src="js/draw.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
