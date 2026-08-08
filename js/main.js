@@ -37,7 +37,7 @@ const App = {
 
     GK.Debug.init({ storage: Storage, title: "SCRIBBLE SPEEDWAY" })
       .jump("challenge", CHALLENGES.length, (n) => this.startChallenge(n - 1))
-      .action("finish lap", () => { if (Game.running) Game.cars[0].prog += Game.track.len * 0.98; })
+      .action("finish lap", () => { if (Game.running) Game.cars[0].raced += Game.track.len * 0.98; })
       .action("+200 coins", () => {
         const p = Storage.getProgress(this.profile.id);
         p.coinsEarned += 200; Storage.saveProgress(this.profile.id, p);

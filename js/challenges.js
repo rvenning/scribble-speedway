@@ -42,82 +42,82 @@ const CHAPTERS = [
 
 const CHALLENGES = [
   /* ---------------------------------------------- 1. Sunny Meadow ------- */
-  { name: "First Lap", chapter: 0, laps: 2, rivals: 1, difficulty: 0.10, parSlack: 1.60,
+  { name: "First Lap", chapter: 0, laps: 2, rivals: 7, difficulty: 0.10, parSlack: 1.60,
     obstacles: [], gates: [], minLen: 950,
     hint: "Draw a big loop with your finger, then race it!" },
 
-  { name: "Around the Oak", chapter: 0, laps: 2, rivals: 1, difficulty: 0.16, parSlack: 1.56,
+  { name: "Around the Oak", chapter: 0, laps: 2, rivals: 7, difficulty: 0.16, parSlack: 1.56,
     obstacles: [tree(350, 500)], gates: [], minLen: 1000,
     hint: "The old oak is in the middle — your track has to go around it." },
 
-  { name: "Duck Pond", chapter: 0, laps: 3, rivals: 2, difficulty: 0.22, parSlack: 1.52,
+  { name: "Duck Pond", chapter: 0, laps: 3, rivals: 7, difficulty: 0.22, parSlack: 1.52,
     obstacles: [pond(300, 430), tree(440, 660)], gates: [], minLen: 1050,
     hint: "Ducks do not move for racing cars. Steer well clear!" },
 
-  { name: "Through the Ring", chapter: 0, laps: 3, rivals: 2, difficulty: 0.28, parSlack: 1.50,
+  { name: "Through the Ring", chapter: 0, laps: 3, rivals: 7, difficulty: 0.28, parSlack: 1.50,
     obstacles: [tree(340, 470)], gates: [ring(350, 790)], minLen: 1100,
     hint: "Your track has to pass through the golden ring." },
 
-  { name: "Two Rings", chapter: 0, laps: 3, rivals: 2, difficulty: 0.34, parSlack: 1.48,
+  { name: "Two Rings", chapter: 0, laps: 3, rivals: 7, difficulty: 0.34, parSlack: 1.48,
     obstacles: [], gates: [ring(210, 230), ring(480, 780)], minLen: 1200,
     hint: "Both rings, one loop. Take the long way round if you have to." },
 
   /* ------------------------------------------------ 2. Sandy Cove ------- */
-  { name: "Beach Run", chapter: 1, laps: 3, rivals: 2, difficulty: 0.38, parSlack: 1.46,
+  { name: "Beach Run", chapter: 1, laps: 3, rivals: 7, difficulty: 0.38, parSlack: 1.46,
     obstacles: [pond(250, 360), pond(450, 660)], gates: [], minLen: 1250,
     hint: "Two rock pools to dodge. Smooth curves are faster than sharp ones." },
 
-  { name: "Rock Pools", chapter: 1, laps: 3, rivals: 3, difficulty: 0.44, parSlack: 1.44,
+  { name: "Rock Pools", chapter: 1, laps: 3, rivals: 7, difficulty: 0.44, parSlack: 1.44,
     obstacles: [rock(200, 500), rock(500, 500), rock(350, 760)], gates: [], minLen: 1300,
     hint: "Three rocks in the way — thread your loop between them." },
 
-  { name: "Wide Berth", chapter: 1, laps: 3, rivals: 3, difficulty: 0.48, parSlack: 1.43,
+  { name: "Wide Berth", chapter: 1, laps: 3, rivals: 7, difficulty: 0.48, parSlack: 1.43,
     obstacles: [pond(350, 500, 74)], gates: [ring(350, 210)], minLen: 1350,
     hint: "A big lagoon in the middle. Sweep around it and through the ring." },
 
-  { name: "Slalom Sands", chapter: 1, laps: 3, rivals: 3, difficulty: 0.52, parSlack: 1.42,
+  { name: "Slalom Sands", chapter: 1, laps: 3, rivals: 7, difficulty: 0.52, parSlack: 1.42,
     obstacles: [rock(240, 330), rock(350, 500), rock(460, 670)], gates: [ring(200, 760)], minLen: 1400,
     hint: "The rocks run diagonally. Pick a side and commit to it." },
 
-  { name: "Long Way Round", chapter: 1, laps: 3, rivals: 3, difficulty: 0.56, parSlack: 1.41,
+  { name: "Long Way Round", chapter: 1, laps: 3, rivals: 7, difficulty: 0.56, parSlack: 1.41,
     obstacles: [pond(350, 500)], gates: [ring(480, 190), ring(210, 810)], minLen: 1900,
     hint: "This one has to be a LONG circuit — at least 1900 long." },
 
   /* ------------------------------------------- 3. Whispering Woods ------ */
-  { name: "Into the Trees", chapter: 2, laps: 3, rivals: 3, difficulty: 0.60, parSlack: 1.39,
+  { name: "Into the Trees", chapter: 2, laps: 3, rivals: 7, difficulty: 0.60, parSlack: 1.39,
     obstacles: [tree(230, 380), tree(230, 620), tree(470, 380), tree(470, 620)], gates: [], minLen: 1350,
     hint: "Four trees in a square. Around the outside, or weave through?" },
 
-  { name: "Tight Squeeze", chapter: 2, laps: 3, rivals: 3, difficulty: 0.64, parSlack: 1.38,
+  { name: "Tight Squeeze", chapter: 2, laps: 3, rivals: 7, difficulty: 0.64, parSlack: 1.38,
     obstacles: [tree(250, 500), tree(450, 500)], gates: [], minLen: 1000, maxLen: 1800,
     hint: "A SHORT circuit this time — no longer than 1800." },
 
-  { name: "Three Rings", chapter: 2, laps: 3, rivals: 3, difficulty: 0.68, parSlack: 1.36,
+  { name: "Three Rings", chapter: 2, laps: 3, rivals: 7, difficulty: 0.68, parSlack: 1.36,
     obstacles: [tree(350, 500)], gates: [ring(250, 220), ring(250, 780), ring(560, 500)], minLen: 1500,
     hint: "Three rings to collect. Plan the shape before you start drawing." },
 
-  { name: "Forest Circuit", chapter: 2, laps: 3, rivals: 3, difficulty: 0.72, parSlack: 1.35,
+  { name: "Forest Circuit", chapter: 2, laps: 3, rivals: 7, difficulty: 0.72, parSlack: 1.35,
     obstacles: [tree(300, 340), tree(300, 660), hay(520, 500), rock(180, 500)],
     gates: [ring(520, 190), ring(480, 820)], minLen: 1600,
     hint: "Busy in here. Find the gaps and keep your corners round." },
 
-  { name: "The Old Barn", chapter: 2, laps: 3, rivals: 3, difficulty: 0.76, parSlack: 1.34,
+  { name: "The Old Barn", chapter: 2, laps: 3, rivals: 7, difficulty: 0.76, parSlack: 1.34,
     obstacles: [barn(330, 500), tree(200, 280), tree(200, 720), hay(570, 500)],
     gates: [ring(420, 160)], minLen: 1600,
     hint: "The barn takes up the whole middle. Go round the outside." },
 
   /* -------------------------------------------------- 4. Frost Peak ----- */
-  { name: "Snow Line", chapter: 3, laps: 3, rivals: 3, difficulty: 0.82, parSlack: 1.32,
+  { name: "Snow Line", chapter: 3, laps: 3, rivals: 7, difficulty: 0.82, parSlack: 1.32,
     obstacles: [rock(250, 300), rock(350, 500), rock(250, 700), rock(520, 400), rock(520, 660)],
     gates: [], minLen: 1600,
     hint: "Five boulders. There is a clean line through — find it." },
 
-  { name: "Summit Gates", chapter: 3, laps: 3, rivals: 3, difficulty: 0.88, parSlack: 1.31,
+  { name: "Summit Gates", chapter: 3, laps: 3, rivals: 7, difficulty: 0.88, parSlack: 1.31,
     obstacles: [rock(210, 430), rock(490, 430), barn(350, 770)],
     gates: [ring(350, 190), ring(150, 650), ring(550, 650)], minLen: 1900,
     hint: "Three rings and a long lap. This is a proper mountain circuit." },
 
-  { name: "Champion's Circuit", chapter: 3, laps: 3, rivals: 3, difficulty: 1.00, parSlack: 1.30,
+  { name: "Champion's Circuit", chapter: 3, laps: 3, rivals: 7, difficulty: 1.00, parSlack: 1.30,
     obstacles: [rock(200, 350), rock(200, 650), pond(430, 500), hay(560, 830)],
     gates: [ring(350, 180), ring(220, 820), ring(600, 560)], minLen: 2000,
     hint: "Everything you have learned, in one lap. Draw it well." },

@@ -26,7 +26,7 @@ finish, and a Daily Circuit with a clock on it for everybody else.
 
 | Mode | What it is |
 |---|---|
-| **Campaign** | 18 challenges across 4 chapters. Each one is a field to design a circuit for, then a race against rivals. One star for finishing, two for beating half the field, three for winning under par. |
+| **Campaign** | 18 challenges across 4 chapters. Each one is a field to design a circuit for, then a **race against seven rivals** on a two-abreast grid. One star for finishing, two for a podium, three for winning under par. You start in the second row, so there are cars to chase and cars in the mirrors. |
 | **Daily Circuit** | The same field of scenery and rings for the whole family, every day. Draw your own circuit through it — it locks once you race it — and chase your own ghost. Your score is how far under par you got, and par comes from the circuit you drew, so a big loop is no disadvantage and a small one is no cheat. |
 | **Track Book** | Save up to 12 circuits and race anybody's. Your best lap on a circuit becomes a **ghost car** for everyone else in the family — the drawing and the ghost both ride the ordinary family sync. |
 
@@ -41,6 +41,10 @@ finish, and a Daily Circuit with a clock on it for everybody else.
 - **Auto-brake** is on by default and slows the car for corners on its own. It
   is deliberately a shade slower than a good manual driver, so turning it off is
   where the time is — one physics model, no second game.
+- **Grip you can lose.** Go into a corner too fast and the car runs wide, the
+  throttle cuts, and the grip you have left drops until you lift — so a slide is
+  something you drive out of rather than something that quietly costs you a
+  little speed.
 - **Par from geometry** — the third star is measured against the fastest lap the
   circuit physically allows in a stock car, not against a fixed clock.
 - **Garage** — grip, top speed, acceleration, brakes and seven paint jobs,
@@ -87,8 +91,11 @@ node tests/bot.test.js --report # the per-challenge balance table
 - `tests/generate.test.js` — every challenge and a year of Daily fields are
   solvable, from any seed. This is the anti-stuck guarantee.
 - `tests/bot.test.js` — three drivers over the whole campaign: an `ace` that
-  must be able to three-star everything, a `kid` that must finish everything but
-  not win everything, and an `idle` control that must never win a race.
+  must be able to three-star everything, a `kid` (coarse steering, late
+  reactions) that must finish everything but not win everything, and an `idle`
+  control that must never win a race. The control bot is run over **six
+  circuits per challenge**, because the player draws the track and one circuit
+  each hid eleven races it could win.
 - `tests/storage.test.js` — the merge that runs on every sync, tested hardest on
   never losing a drawing.
 - `tests/ghost.test.js` — round trip, playback and corrupt input.
