@@ -89,19 +89,32 @@ const Paint = {
     }
   },
 
+  // The chequered band across the start line.
+  //
+  // Rotate by the TANGENT, not the normal. After `rotate(atan2(t.y, t.x))` the
+  // local +x axis runs along the track and local +y is exactly the offset
+  // direction the physics uses — so a band spanning local y from -HALF_W to
+  // +HALF_W covers the tarmac and nothing else. Rotating by the normal instead
+  // lays the whole thing lengthways down the road, which is what it did.
   startLine(ctx, line, view) {
     if (!line || line.length < 3) return;
     const a = line[0], b = line[1];
     const d = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-    const nx = -(b.y - a.y) / d, ny = (b.x - a.x) / d;
-    const x = view.ox + a.x * view.s, y = view.oy + a.y * view.s;
+    const tx = (b.x - a.x) / d, ty = (b.y - a.y) / d;
+
     ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(Math.atan2(ny, nx));
-    const w = HALF_W * view.s, h = 7 * view.s;
-    for (let i = -3; i < 3; i++) {
-      ctx.fillStyle = i % 2 ? "#ffffff" : "#1b1b1b";
-      ctx.fillRect(-h, (i * w) / 3, h * 2, w / 3);
+    ctx.translate(view.ox + a.x * view.s, view.oy + a.y * view.s);
+    ctx.rotate(Math.atan2(ty, tx));
+
+    const half = HALF_W * view.s;
+    const depth = 8 * view.s;               // how far along the track it reaches
+    const cells = 8;
+    const cw = (half * 2) / cells;
+    for (let row = 0; row < 2; row++) {
+      for (let c = 0; c < cells; c++) {
+        ctx.fillStyle = (row + c) % 2 ? "#f4f4f4" : "#1b1b1b";
+        ctx.fillRect(-depth + row * depth, -half + c * cw, depth + 0.4, cw + 0.4);
+      }
     }
     ctx.restore();
   },
