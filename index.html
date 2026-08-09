@@ -69,6 +69,10 @@
       <input type="checkbox" id="chk-assist" onchange="App.toggleAssist(this.checked)">
       <span><b>🅿️ Auto-brake</b> — the car slows down for corners on its own. Turn it off to go faster.</span>
     </label>
+    <label class="assist-row">
+      <input type="checkbox" id="chk-manual" onchange="App.setManual(this.checked)">
+      <span><b>🚀 Manual throttle</b> — you work the accelerator as well as the brake. Two thumbs, and the fastest way round.</span>
+    </label>
     <div id="chapter-list"></div>
   </div>
 </div>
@@ -86,6 +90,7 @@
   </div>
   <div class="draw-bar">
     <button class="btn grey small" id="btn-clear" onclick="Draw.clear()">↺ Clear</button>
+    <button class="btn small" id="btn-fix" onclick="Draw.fix()" style="display:none">🩹 Fix my track</button>
     <button class="btn blue small" id="btn-auto" onclick="Draw.auto()">🎲 Draw it for me</button>
     <button class="btn green" id="btn-race" onclick="Draw.race()" disabled>🏁 Race!</button>
   </div>
@@ -98,11 +103,16 @@
     <span class="hud pos" id="hud-pos"></span>
     <span class="hud grow" id="hud-lap"></span>
     <span class="hud" id="hud-best"></span>
+    <span class="hud" id="hud-speed" style="display:none"></span>
     <span class="hud time" id="hud-time">0.0</span>
   </header>
   <div class="game-stage" id="race-stage">
     <canvas id="cv"></canvas>
-    <button class="brake-pedal" id="btn-brake" aria-label="Brake">🅿️</button>
+    <!-- Floated INSIDE the stage, so showing or hiding a pedal never reflows
+         the playfield. Split either side of centre to stay in the gentle part
+         of the steering range. -->
+    <button class="pedal brake-pedal" id="btn-brake" aria-label="Brake">🅿️</button>
+    <button class="pedal gas-pedal" id="btn-throttle" aria-label="Accelerate">🚀</button>
   </div>
 </div>
 
@@ -114,6 +124,7 @@
     <div class="res-stars" id="res-stars"></div>
     <div class="res-score" id="res-score"></div>
     <div class="res-stats" id="res-stats"></div>
+    <div class="res-class" id="res-class"></div>
     <p class="res-note" id="res-note"></p>
     <p class="res-finished" id="res-finished" style="display:none">👑 Every circuit drawn and every race won. You are the Scribble Speedway champion!</p>
     <div class="res-actions">
@@ -187,6 +198,10 @@
     <label class="assist-row">
       <input type="checkbox" id="chk-assist2" onchange="App.toggleAssist(this.checked)">
       <span><b>🅿️ Auto-brake</b> — slows the car for corners on its own.</span>
+    </label>
+    <label class="assist-row">
+      <input type="checkbox" id="chk-manual2" onchange="App.setManual(this.checked)">
+      <span><b>🚀 Manual throttle</b> — you work the accelerator too.</span>
     </label>
     <div class="row-btns2">
       <button class="btn green" onclick="Game.resume()">▶️ Resume</button>

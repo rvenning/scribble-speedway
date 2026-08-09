@@ -39,6 +39,7 @@ Object.assign(Sfx, {
 // motor.
 const Engine = {
   on: false,
+  muted: false,
   nodes: null,
 
   start() {
@@ -59,9 +60,21 @@ const Engine = {
     this.on = true;
   },
 
+  // Silence for the pause sheet WITHOUT stopping the oscillators — a stopped
+  // OscillatorNode can never be started again, so pausing by stopping would
+  // mean rebuilding the whole engine on every resume, complete with a fresh
+  // attack. Ducking the gain holds the note ready at zero volume.
+  duck() {
+    if (!this.on || !Sfx.ctx) return;
+    this.muted = true;
+    this.nodes.g.gain.setTargetAtTime(0.0001, Sfx.ctx.currentTime, 0.03);
+  },
+
+  unduck() { this.muted = false; },
+
   // speed 0..1, load 0..1 (how hard the car is working)
   set(speed, load) {
-    if (!this.on || !Sfx.ctx) return;
+    if (!this.on || this.muted || !Sfx.ctx) return;   // or this fights the duck
     const t = Sfx.ctx.currentTime;
     const f = 64 + speed * 210;
     this.nodes.a.frequency.setTargetAtTime(f, t, 0.05);
@@ -76,6 +89,11 @@ const Engine = {
     g.gain.setTargetAtTime(0.0001, t, 0.05);
     try { a.stop(t + 0.4); b.stop(t + 0.4); } catch (e) { /* already stopped */ }
     this.on = false;
+    // Clearing `muted` here is not tidiness: quitting from the pause sheet
+    // stops a ducked engine, and without this the NEXT race would start with
+    // `muted` still true and every `set()` would return early — a silent car
+    // with nothing in the console to explain it.
+    this.muted = false;
     this.nodes = null;
   },
 };

@@ -485,7 +485,11 @@ const Track = {
     }
 
     let line = resampleClosed(pts, NODE_SPACING);
-    line = smoothClosed(line, 5, 0.5);
+    // The five-pass smooth is a de-noiser for a shaky finger. A generated line
+    // has no wobble to remove, and on a deliberate chord this pass is precisely
+    // what bends a straight back into a curve — so callers who built their own
+    // clean geometry opt out. Defaults off, so every DRAWN track is unchanged.
+    if (!opts.clean) line = smoothClosed(line, 5, 0.5);
     line = relax(line, opts);
     line = smoothClosed(line, 2, 0.3);
     line = relax(line, { ...opts, iters: 40 });
@@ -493,6 +497,126 @@ const Track = {
 
     const problems = Track.lint(line, opts);
     return { ok: problems.length === 0, problems, line, track: problems.length ? null : Track.make(line) };
+  },
+
+  /* ------------------------------------------------------------ repair -- */
+
+  // Try much harder to save a drawing than `fromScribble` does.
+  //
+  // `fromScribble` runs a fixed, cheap repair because it fires on every stroke.
+  // This runs behind a button the player only presses when they have been told
+  // something is wrong, so it can afford to be stubborn — and it must be,
+  // because the promise attached to that button is that it always works.
+  //
+  // Three rungs, each re-linting and stopping the moment the drawing is
+  // raceable. If all three fail the caller escalates to the generator; this
+  // function's job is to save the player's own shape wherever that is possible.
+  repair(raw, spec = {}) {
+    const seed = Track.fromScribble(raw, spec);
+    if (seed.ok) return seed;
+    let line = seed.line || resampleClosed(raw, NODE_SPACING);
+    const done = () => {
+      const problems = Track.lint(line, spec);
+      return problems.length ? null : { ok: true, problems: [], line, track: Track.make(line) };
+    };
+    let out;
+
+    // Rung 1 — just keep relaxing. The default 90+40 iterations is a budget,
+    // not a limit, and most "that corner is too sharp" / "over the tree" /
+    // "off the grass" drawings settle given a few hundred more.
+    for (let round = 0; round < 3; round++) {
+      line = relax(line, { ...spec, iters: 400 });
+      line = resampleClosed(smoothClosed(line, 1, 0.25), NODE_SPACING);
+      if ((out = done())) return out;
+    }
+
+    // Rung 2 — the loop is the wrong size. Scale it about its own centroid,
+    // relaxing after EVERY step: scaling slides the whole shape off its gates
+    // and onto obstacles, and two scales in a row compound that into a mess.
+    const minLen = spec.minLen || MIN_LOOP, maxLen = spec.maxLen || MAX_LOOP;
+    for (let round = 0; round < 6; round++) {
+      const L = loopLength(line);
+      if (L >= minLen && L <= maxLen) break;
+      const target = L < minLen ? minLen * 1.08 : maxLen * 0.92;
+      let cx = 0, cy = 0;
+      for (const p of line) { cx += p.x; cy += p.y; }
+      cx /= line.length; cy /= line.length;
+      let f = Math.pow(target / L, 0.7);
+      // Growing must not push the tarmac off the field, so cap the factor by
+      // how much room the bounding box actually has.
+      if (f > 1) {
+        let room = Infinity;
+        for (const p of line) {
+          const lo = HALF_W + EDGE_MARGIN;
+          if (p.x > cx) room = Math.min(room, (FIELD.w - lo - cx) / Math.max(1, p.x - cx));
+          if (p.x < cx) room = Math.min(room, (cx - lo) / Math.max(1, cx - p.x));
+          if (p.y > cy) room = Math.min(room, (FIELD.h - lo - cy) / Math.max(1, p.y - cy));
+          if (p.y < cy) room = Math.min(room, (cy - lo) / Math.max(1, cy - p.y));
+        }
+        f = Math.min(f, Math.max(1, room));
+      }
+      line = line.map((p) => ({ x: cx + (p.x - cx) * f, y: cy + (p.y - cy) * f }));
+      line = relax(line, { ...spec, iters: 120 });
+      line = resampleClosed(line, NODE_SPACING);
+      if ((out = done())) return out;
+    }
+
+    // Rung 3 — the track crosses itself. First try easing the two strands
+    // apart; if the neck survives that, the drawing is a figure-8 or has a
+    // parasitic lobe, so keep the LONGER lobe and close it. That is
+    // overwhelmingly the loop the player meant to draw.
+    for (let round = 0; round < 4; round++) {
+      const hit = Track.crossing(line);
+      if (!hit) break;
+      if (round < 2) {
+        const { i, j } = hit;
+        const n = line.length;
+        const dx = line[j].x - line[i].x, dy = line[j].y - line[i].y;
+        const d = Math.hypot(dx, dy) || 1;
+        const push = (TRACK_W * 1.05 - d) / 2;
+        for (let k = -5; k <= 5; k++) {
+          const w = (1 - Math.abs(k) / 6) * push;
+          const a = line[(i + k + n) % n], b = line[(j + k + n) % n];
+          a.x -= (dx / d) * w; a.y -= (dy / d) * w;
+          b.x += (dx / d) * w; b.y += (dy / d) * w;
+        }
+        line = relax(resampleClosed(line, NODE_SPACING), { ...spec, iters: 150 });
+      } else {
+        line = Track.keepLargerLobe(line, hit);
+        line = relax(resampleClosed(line, NODE_SPACING), { ...spec, iters: 200 });
+      }
+      line = resampleClosed(line, NODE_SPACING);
+      if ((out = done())) return out;
+    }
+
+    return { ok: false, problems: Track.lint(line, spec), line, track: null };
+  },
+
+  // The first pair of points that are far apart along the track but close
+  // together in space — the same rule `lint` uses to call a track crossed.
+  crossing(pts) {
+    const p = resampleClosed(pts, NODE_SPACING), n = p.length;
+    const skip = Math.ceil((TRACK_W * 1.35) / NODE_SPACING);
+    const near = (TRACK_W * 0.95) ** 2;
+    for (let i = 0; i < n; i++) {
+      for (let j = i + skip + 1; j < n; j++) {
+        const gap = Math.min(j - i, n - (j - i));
+        if (gap <= skip) continue;
+        if (dist2(p[i], p[j]) < near) return { i, j };
+      }
+    }
+    return null;
+  },
+
+  // Split the loop at a crossing and keep whichever side is longer.
+  keepLargerLobe(pts, { i, j }) {
+    const p = resampleClosed(pts, NODE_SPACING), n = p.length;
+    const a = [], b = [];
+    for (let k = i; k !== j; k = (k + 1) % n) a.push(p[k]);
+    for (let k = j; k !== i; k = (k + 1) % n) b.push(p[k]);
+    const len = (arr) => arr.reduce((s, q, idx) => s + (idx ? dist(q, arr[idx - 1]) : 0), 0);
+    const keep = len(a) >= len(b) ? a : b;
+    return keep.length >= 12 ? keep : p;
   },
 
   /* ------------------------------------------------------- persistence -- */

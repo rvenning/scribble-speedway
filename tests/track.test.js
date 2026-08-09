@@ -11,7 +11,7 @@ const test = require("node:test");
 const assert = require("node:assert");
 const S = require("./load.js");
 
-const { Track, RNG, FIELD, HALF_W, MIN_RADIUS, TAU, MIN_LOOP, NODE_SPACING } = S;
+const { Track, Generate, RNG, FIELD, HALF_W, MIN_RADIUS, TAU, MIN_LOOP, NODE_SPACING } = S;
 
 // A wobbly hand-drawn loop: an off-round oval plus per-sample jitter.
 function hand(seed, { wobble = 14, n = 200, rx = 240, ry = 340, lobes = 3 } = {}) {
@@ -166,6 +166,89 @@ test("a rejected drawing still hands back the repaired line to show the player",
   const res = Track.fromScribble(eight);
   assert.equal(res.ok, false);
   assert.ok(res.line && res.line.length > 20, "the drawing screen needs something to draw");
+});
+
+/* ---------------------------------------------------------- the rescue -- */
+
+// "Fix my track" promises a raceable circuit whatever the player drew. `Draw`
+// cannot be loaded headless, so this composes the same ladder its handler does:
+// repair the drawing, else rebuild it in the shape they drew, else generate one.
+function fixLadder(raw, spec = {}) {
+  const repaired = Track.repair(raw, spec);
+  if (repaired.ok) return { by: "repair", track: repaired.track };
+  const shaped = Generate.fromShape(repaired.line || raw, spec, 12345);
+  if (shaped) return { by: "fromShape", track: shaped.track };
+  const made = Generate.solve(spec, { seed: 999 });
+  if (made) return { by: "generate", track: made.track };
+  return null;
+}
+
+const ring = (cx, cy, rx, ry, n = 200) => {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU;
+    out.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry });
+  }
+  return out;
+};
+
+test("the fix ladder rescues every drawing that cannot be raced", () => {
+  const cases = {
+    "a coin-sized loop": [ring(350, 500, 70, 70), {}],
+    "a figure-8": [(() => {
+      const p = [];
+      for (let i = 0; i < 260; i++) {
+        const a = (i / 260) * TAU;
+        p.push({ x: 350 + Math.sin(a * 2) * 230, y: 500 + Math.sin(a) * 340 });
+      }
+      return p;
+    })(), {}],
+    "a loop drawn over the barn": [ring(350, 500, 250, 330),
+      { obstacles: [{ kind: "barn", x: 350, y: 220, r: 40 }] }],
+    "a loop that misses a ring entirely": [ring(380, 330, 200, 230),
+      { gates: [{ x: 120, y: 880, r: 60 }] }],
+    "a loop far too big for a tight challenge": [ring(350, 500, 300, 430), { maxLen: 1500 }],
+    "a lopsided scrawl": [(() => {
+      const p = [];
+      for (let i = 0; i < 240; i++) {
+        const a = (i / 240) * TAU;
+        const r = 120 + Math.sin(a * 5) * 90 + Math.sin(a * 11) * 50;
+        p.push({ x: 350 + Math.cos(a) * r, y: 500 + Math.sin(a) * r * 1.4 });
+      }
+      return p;
+    })(), {}],
+  };
+
+  // Only the drawings the ordinary pipeline actually refuses are interesting
+  // here — the rest are evidence that the everyday repair is doing its job, not
+  // failures of this test. Asserting a hand-written case must be broken makes
+  // the suite fragile against improvements to that repair.
+  const broken = Object.entries(cases).filter(([, [raw, spec]]) => !Track.fromScribble(raw, spec).ok);
+  assert.ok(broken.length >= 4,
+    `only ${broken.length} of the pathological drawings are still refused — add harder ones`);
+
+  const fails = [];
+  for (const [name, [raw, spec]] of broken) {
+    const fixed = fixLadder(raw, spec);
+    if (!fixed) { fails.push(`${name}: the fix button would have failed`); continue; }
+    const problems = Track.lint(fixed.track.pts, spec);
+    if (problems.length) fails.push(`${name}: fixed to something still broken — ${problems[0]}`);
+  }
+  assert.deepEqual(fails, []);
+});
+
+test("the fix ladder keeps the player's own shape when it can", () => {
+  // A loop that only just clips a tree should come back recognisably theirs,
+  // not replaced with a generated circuit somewhere else on the field.
+  const spec = { obstacles: [{ kind: "tree", x: 350, y: 190, r: 34 }] };
+  const raw = ring(350, 500, 240, 320);
+  const before = Track.fromScribble(raw, spec);
+  const fixed = Track.repair(raw, spec);
+  assert.equal(fixed.ok, true, "the repair rungs should have handled this alone");
+  // Centroid should barely move — same circuit, nudged.
+  const mid = (pts) => pts.reduce((a, p) => ({ x: a.x + p.x / pts.length, y: a.y + p.y / pts.length }), { x: 0, y: 0 });
+  const a = mid(before.line), b = mid(fixed.line);
+  assert.ok(Math.hypot(a.x - b.x, a.y - b.y) < 90, "the repaired circuit wandered off");
 });
 
 /* -------------------------------------------------------- the sampling -- */

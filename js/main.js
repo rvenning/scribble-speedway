@@ -15,6 +15,7 @@ const App = {
     const settings = Storage.getSettings();
     Sfx.enabled = settings.sound !== false;
     this.assist = settings.assist !== false;         // on by default: it is the kid setting
+    this.manual = settings.manual === true;          // off by default, for the same reason
 
     GK.UI.onScreenChange = (name) => {
       Game.active = name === "game";
@@ -56,16 +57,57 @@ const App = {
   showScreen(name) { GK.UI.showScreen(name); },
   progress() { return Storage.getProgress(this.profile.id); },
 
+  // Three coherent rungs, from two flags. The fourth combination — a car that
+  // decides when to slow down but not when to go — is incoherent, so manual
+  // throttle forces auto-brake off and disables the control rather than
+  // leaving a setting that does nothing.
+  //
+  //   Easy          throttle automatic, auto-brake on   no pedals
+  //   Easy + brake  throttle automatic, you brake       brake pedal
+  //   Manual        you do both                         both pedals
+  //
+  // Easy is the default and is untouched by any of this — that is where the
+  // one-thumb guarantee for a five-year-old lives.
   toggleAssist(on) {
     this.assist = on;
     const s = Storage.getSettings();
     s.assist = on;
     Storage.saveSettings(s);
-    this.el("chk-assist").checked = on;
-    this.el("chk-assist2").checked = on;
-    this.el("btn-brake").classList.toggle("on", !on);
     Game.assist = on;
+    this.syncDriving();
     Sfx.click();
+  },
+
+  setManual(on) {
+    this.manual = on;
+    if (on) this.assist = false;
+    const s = Storage.getSettings();
+    s.manual = on;
+    s.assist = this.assist;
+    Storage.saveSettings(s);
+    Game.assist = this.assist;
+    Game.manual = on;
+    this.syncDriving();
+    Sfx.click();
+  },
+
+  // The single place that decides what the driving controls look like. It used
+  // to be copy-pasted across three call sites, which is how the pedal and the
+  // checkboxes drifted apart.
+  syncDriving() {
+    for (const id of ["chk-assist", "chk-assist2"]) {
+      const el = this.el(id);
+      if (!el) continue;
+      el.checked = this.assist;
+      el.disabled = this.manual;                 // meaningless while you brake yourself
+    }
+    for (const id of ["chk-manual", "chk-manual2"]) {
+      const el = this.el(id);
+      if (el) el.checked = this.manual;
+    }
+    this.el("btn-brake").classList.toggle("on", this.manual || !this.assist);
+    this.el("btn-throttle").classList.toggle("on", this.manual);
+    this.el("hud-speed").style.display = this.manual ? "" : "none";
   },
 
   /* ------------------------------- splash -------------------------------- */
@@ -100,9 +142,7 @@ const App = {
     this.el("map-player").innerHTML = `${this.profile.avatar} <b>${GK.util.esc(this.profile.name)}</b>`;
     this.el("map-stars").textContent = `⭐ ${Storage.totalStars(prog)}`;
     this.el("map-coins").textContent = `🪙 ${Storage.coins(prog)}`;
-    this.el("chk-assist").checked = this.assist;
-    this.el("chk-assist2").checked = this.assist;
-    this.el("btn-brake").classList.toggle("on", !this.assist);
+    this.syncDriving();
 
     const cont = this.el("btn-continue");
     cont.textContent = `✏️ ${CHALLENGES[unlocked].name}`;
@@ -149,7 +189,7 @@ const App = {
         Game.start({
           track, challenge: c, challengeIdx: idx, mode: "campaign",
           obstacles: c.obstacles, gates: c.gates, chapter: CHAPTERS[c.chapter],
-          stats: carStats(prog), skin: Storage.skinOf(prog), assist: this.assist,
+          stats: carStats(prog), skin: Storage.skinOf(prog), assist: this.assist, manual: this.manual, manual: this.manual,
           profile: this.profile,
         });
         this.enterRace();
@@ -162,7 +202,7 @@ const App = {
   enterRace() {
     this.showScreen("game");
     Render.resize();
-    this.el("btn-brake").classList.toggle("on", !this.assist);
+    this.syncDriving();
   },
 
   /* ------------------------------- results ------------------------------- */
@@ -179,6 +219,23 @@ const App = {
     this.el("res-finished").style.display = "none";
 
     const fmt = (t) => `${t.toFixed(2)}s`;
+
+    // The full finishing order, Mario-Kart style. Only when there was a field
+    // to finish among — the Daily and the Track Book run without rivals.
+    const cls = this.el("res-class");
+    const rows = res.classification || [];
+    cls.innerHTML = rows.length > 1 ? rows.map((r) => {
+      const gap = r.place === 1 ? `🏁 ${r.time.toFixed(2)}`
+        : r.lapsDown >= 1 ? `+${r.lapsDown} lap${r.lapsDown > 1 ? "s" : ""}`
+        : r.finished ? `+${r.gap.toFixed(2)}`
+        : `≈ +${r.gap.toFixed(1)}`;      // still out there — an estimate, marked as one
+      return `<div class="lb-row${r.isPlayer ? " me" : ""}${r.finished ? "" : " out"}">
+        <span class="lb-rank">${r.place}</span>
+        <span class="lb-avatar">${r.emoji || "🏎️"}</span>
+        <span class="lb-name">${GK.util.esc(r.name)}</span>
+        <span class="lb-gap">${gap}</span>
+      </div>`;
+    }).join("") : "";
 
     if (res.mode === "campaign") {
       const prog = Storage.recordRace(this.profile.id, res);
@@ -349,7 +406,7 @@ const App = {
     Game.start({
       track, mode: "free", laps: 3, rivals: 0,
       obstacles: [], gates: [], chapter: CHAPTERS[0],
-      stats: carStats(prog), skin: Storage.skinOf(prog), assist: this.assist,
+      stats: carStats(prog), skin: Storage.skinOf(prog), assist: this.assist, manual: this.manual,
       ghost, profile: this.profile,
     });
     this.enterRace();
@@ -386,7 +443,7 @@ const App = {
     this.el("daily-rows").innerHTML = rows.length
       ? rows.map((r, i) => `<div class="lb-row${r.p.id === this.profile.id ? " me" : ""}">
           <span class="lb-rank">${i + 1}</span>
-          <span class="lb-av">${r.p.avatar}</span>
+          <span class="lb-avatar">${r.p.avatar}</span>
           <span class="lb-name">${GK.util.esc(r.p.name)}</span>
           <span class="lb-stat">🏁 ${r.d.score}</span>
           <span class="lb-stat">⏱ ${r.d.time.toFixed(2)}</span>
@@ -427,7 +484,7 @@ const App = {
     Game.start({
       track: Track.make(line), mode: "daily", laps: 3, rivals: 0,
       obstacles: spec.obstacles, gates: spec.gates, chapter: spec.chapter,
-      stats: carStats(prog), skin: Storage.skinOf(prog), assist: this.assist,
+      stats: carStats(prog), skin: Storage.skinOf(prog), assist: this.assist, manual: this.manual,
       ghost: mine.ghost ? Ghost.decode(mine.ghost) : null,
       profile: this.profile,
     });

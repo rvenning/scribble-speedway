@@ -236,9 +236,56 @@ const Draw = {
       this.setHint("Nice circuit! Tap 🏁 Race! when you are ready.", "good");
     } else {
       Sfx.nope();
-      this.setHint(res.problems[0], "bad");
+      // One friendly sentence about what is wrong, and a one-tap way out of it.
+      this.setHint(res.problems[0] + "  Or tap 🩹 Fix my track.", "bad");
     }
     this.updateBar();
+  },
+
+  // Make the player's drawing raceable, whatever it takes.
+  //
+  // This button never fails. It escalates: relax the drawing much harder than
+  // the live pipeline can afford to, then resize it, then untangle it; if the
+  // shape truly cannot be saved, build a circuit that FOLLOWS the shape they
+  // drew; and if even that will not lint, generate a fresh one. The last rung
+  // is guaranteed by tests/generate.test.js, which already asserts that every
+  // challenge and a year of Daily fields are solvable.
+  fix() {
+    if (!this.raw.length) return;
+    Sfx.click();
+    const btn = document.getElementById("btn-fix");
+    btn.disabled = true; btn.textContent = "🩹 fixing…";
+    // Let the label repaint before the search, which is synchronous.
+    setTimeout(() => {
+      let res = Track.repair(this.raw, this.spec);
+      let note = "Fixed it! Tap 🏁 Race! when you are ready.";
+
+      if (!res.ok) {
+        const shaped = Generate.fromShape(res.line || this.raw, this.spec,
+          (Math.random() * 4294967295) >>> 0);
+        if (shaped) {
+          res = { ok: true, track: shaped.track, line: shaped.line, problems: [] };
+          note = "I straightened that out for you — tap 🏁 Race!";
+        }
+      }
+      if (!res.ok) {
+        const made = Generate.solve(this.spec, { seed: (Math.random() * 4294967295) >>> 0 });
+        if (made) {
+          res = { ok: true, track: made.track, line: made.line, problems: [] };
+          note = "I built you one to race — tap 🏁 Race!";
+        }
+      }
+
+      btn.disabled = false; btn.textContent = "🩹 Fix my track";
+      if (!res.ok) { this.setHint(res.problems[0] || "Try drawing a big round loop!", "bad"); return; }
+
+      this.raw = res.line.map((p) => ({ x: p.x, y: p.y }));
+      this.result = res;
+      this.reveal = 0.0001;
+      Sfx.snap();
+      this.setHint(note, "good");
+      this.updateBar();
+    }, 30);
   },
 
   // A valid circuit, generated. The anti-stuck escape hatch: no drawing a child
@@ -270,6 +317,11 @@ const Draw = {
   updateBar() {
     const ok = !!(this.result && this.result.ok);
     document.getElementById("btn-race").disabled = !ok;
+    // Offered only when there is something to fix. Showing it always puts a
+    // second inviting button beside 🏁 Race! and tempts a child to press it on
+    // a circuit that is already fine.
+    const broken = !!(this.result && !this.result.ok && this.result.line);
+    document.getElementById("btn-fix").style.display = broken ? "" : "none";
     const len = this.result && this.result.line
       ? Math.round(this.result.line.reduce((a, p, i, arr) => a + (i ? Math.hypot(p.x - arr[i - 1].x, p.y - arr[i - 1].y) : 0), 0))
       : 0;

@@ -50,22 +50,20 @@ const Render = {
     this.cv.addEventListener("pointercancel", release);
     this.cv.addEventListener("pointerleave", release);
 
-    const brake = document.getElementById("btn-brake");
-    const setBrake = (on) => (e) => { e.preventDefault(); Game.input.brake = on; };
-    brake.addEventListener("pointerdown", setBrake(true), { passive: false });
-    brake.addEventListener("pointerup", setBrake(false), { passive: false });
-    brake.addEventListener("pointerleave", setBrake(false), { passive: false });
-    brake.addEventListener("pointercancel", setBrake(false), { passive: false });
+    this.bindPedal(document.getElementById("btn-brake"), (on) => { Game.input.brake = on; });
+    this.bindPedal(document.getElementById("btn-throttle"), (on) => { Game.input.throttle = on ? 1 : 0; });
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "ArrowLeft" || e.key === "a") Game.input.steer = -1;
       if (e.key === "ArrowRight" || e.key === "d") Game.input.steer = 1;
       if (e.key === "ArrowDown" || e.key === " ") Game.input.brake = true;
+      if (e.key === "ArrowUp" || e.key === "w") Game.input.throttle = 1;
       if (e.key === "p" || e.key === "P") { if (Game.running) (Game.paused ? Game.resume() : Game.pause()); }
     });
     document.addEventListener("keyup", (e) => {
       if (["ArrowLeft", "ArrowRight", "a", "d"].includes(e.key)) Game.input.steer = 0;
       if (e.key === "ArrowDown" || e.key === " ") Game.input.brake = false;
+      if (e.key === "ArrowUp" || e.key === "w") Game.input.throttle = 0;
     });
 
     // iOS keeps a pinch zoom forever once it happens, and JS cannot reset one.
@@ -76,6 +74,38 @@ const Render = {
     window.addEventListener("orientationchange", () => setTimeout(() => this.resize(), 350));
     this.resize();
     requestAnimationFrame((t) => this.loop(t));
+  },
+
+  // A held on-screen pedal.
+  //
+  // Two traps, both of which the old brake handler walked into. `pressure` is 0
+  // for ordinary touch on iOS, so nothing here may gate on it. And the pointer
+  // must be CAPTURED on press: without it, a thumb that drifts off the button
+  // mid-corner fires `pointerleave` and silently lifts off the brake — which is
+  // exactly when you are least likely to notice why you went straight on.
+  // `pointerleave` is deliberately not bound; with capture it fires spuriously,
+  // and `lostpointercapture` covers the case it was there for.
+  bindPedal(el, set) {
+    if (!el) return;
+    const down = (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* not captured */ }
+      el.classList.add("held");
+      set(true);
+    };
+    const up = (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      el.classList.remove("held");
+      set(false);
+    };
+    el.addEventListener("pointerdown", down, { passive: false });
+    el.addEventListener("pointerup", up, { passive: false });
+    el.addEventListener("pointercancel", up, { passive: false });
+    el.addEventListener("lostpointercapture", up, { passive: false });
+    // Some iOS builds are stingy with pointer events during fast multi-touch,
+    // and steering with one thumb while pedalling with the other IS multi-touch.
+    el.addEventListener("touchstart", (e) => { e.preventDefault(); down({}); }, { passive: false });
+    el.addEventListener("touchend", (e) => { e.preventDefault(); up(); }, { passive: false });
   },
 
   resize() {
@@ -102,11 +132,26 @@ const Render = {
     const screen = GK.UI.screen;
     if (screen === "draw") Draw.render(dt);
     else if (screen === "game") {
-      Game.update(dt);
-      Fx.update(dt);
-      this.drainEvents();
-      this.render(dt);
-      this.hud();
+      // One edge detector covers every route into and out of pause — the ⏸
+      // button, the P key and Quit — and keeps the audio out of game.js, which
+      // has to stay a pure simulation.
+      if (Game.paused !== this._paused) {
+        this._paused = Game.paused;
+        if (Game.paused) Engine.duck(); else Engine.unduck();
+      }
+      if (Game.paused) {
+        // A single static frame. `Game.update` already returns early when
+        // paused, but everything AROUND it kept running: the engine held one
+        // note, the checkpoint rings kept pulsing, dust kept spawning and a car
+        // frozen mid-slide kept screeching. Passing dt = 0 stops the lot.
+        this.render(0);
+      } else {
+        Game.update(dt);
+        Fx.update(dt);
+        this.drainEvents();
+        this.render(dt);
+        this.hud();
+      }
     }
     GK.Debug.frame(dt);
     requestAnimationFrame((t) => this.loop(t));
@@ -191,6 +236,25 @@ const Render = {
     ctx.fillRect(2, -9, 8, 18);                 // bonnet flash
     ctx.fillStyle = "rgba(20,26,34,.85)";
     ctx.fillRect(-6, -7, 9, 14);                // cockpit
+
+    // The driver, sitting IN the seat. This used to be drawn at a world-space
+    // offset outside the car and counter-rotated by the camera, so the animal
+    // orbited its own car as the player turned and hung off the bodywork.
+    // Inside the car's own transform it simply rides in it.
+    //
+    // The quarter turn: a glyph's up-vector is (0,-1), and rotate(t) maps that
+    // to (sin t, -cos t). The car's nose is local (1,0), so t = +PI/2 — without
+    // it the animal sits side-saddle looking out of the window.
+    if (car.emoji) {
+      ctx.save();
+      ctx.translate(-1.5, 0);                   // centre of the cockpit (x -6..+3)
+      ctx.rotate(Math.PI / 2);
+      ctx.font = "11px serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(car.emoji, 0, 0);
+      ctx.restore();
+    }
+
     ctx.fillStyle = "#1b1b1b";
     ctx.fillRect(-12, -11, 7, 3); ctx.fillRect(-12, 8, 7, 3);
     ctx.fillRect(6, -11, 7, 3); ctx.fillRect(6, 8, 7, 3);
@@ -201,16 +265,7 @@ const Render = {
     }
     ctx.restore();
 
-    if (!isMe && car.emoji) {
-      ctx.save();
-      ctx.translate(p.x, p.y - 20);
-      ctx.rotate(Math.PI / 2 + t.headingAt(Game.cars[0].s));
-      ctx.font = "13px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(car.emoji, 0, 0);
-      ctx.restore();
-    }
-
-    if (car.sliding > 0.35 && car.v > 60) {
+    if (!Game.paused && car.sliding > 0.35 && car.v > 60) {
       Fx.dust(p.x, p.y, 1, car.grass > 0.3 ? "#6f9a4e" : "#c9c4b4");
       if (isMe && Math.random() < 0.10) Sfx.screech();
     }
@@ -289,6 +344,9 @@ const Render = {
     el("hud-lap").textContent = `Lap ${Math.min(Game.laps, me.lap + 1)}/${Game.laps}`;
     el("hud-time").textContent = Game.time.toFixed(1);
     el("hud-best").textContent = Game.bestLap ? `⚡ ${Game.bestLap.toFixed(2)}` : "";
+    // Only meaningful when the player owns the throttle — without a readout a
+    // manual driver has no feel for where the corner limit is.
+    if (Game.manual) el("hud-speed").textContent = `🚀 ${Math.round(me.v)}`;
   },
 
   ord(n) { return n === 1 ? "1st" : n === 2 ? "2nd" : n === 3 ? "3rd" : n + "th"; },

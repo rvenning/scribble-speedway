@@ -65,8 +65,12 @@ const Game = {
   paused: false,
 
   // Set by the renderer's input handlers, or by a bot. -1..1 across the track,
-  // and a brake flag; nothing else reaches the simulation.
-  input: { steer: 0, brake: false },
+  // a brake flag, and a 0..1 throttle; nothing else reaches the simulation.
+  //
+  // `throttle` defaults to 1 and is only READ in manual mode, so a driver who
+  // never touches it — every bot in tests/, and every player on Easy — gets a
+  // multiply by one and arithmetic identical to before it existed.
+  input: { steer: 0, brake: false, throttle: 1 },
 
   // A showroom car. Par is measured against this and never against what the
   // player has fitted, or the target would run away from the very upgrades
@@ -93,6 +97,10 @@ const Game = {
     this.chapter = opts.chapter || (this.challenge ? CHAPTERS[this.challenge.chapter] : CHAPTERS[0]);
     this.laps = opts.laps || (this.challenge ? this.challenge.laps : RULES.laps);
     this.assist = opts.assist !== false;
+    // Manual driving: the player works the throttle themselves. Off by default
+    // and off for every bot, which is what keeps the balance numbers still.
+    this.manual = opts.manual === true;
+    this.silent = opts.silent === true;
     this.skin = opts.skin || SKINS[0];
     this.ghost = opts.ghost || null;                    // decoded, or null
     this.stats = opts.stats || { grip: RULES.grip, top: RULES.topSpeed, accel: RULES.accel, brake: RULES.brake };
@@ -114,6 +122,7 @@ const Game = {
     this.paused = false;
     this.input.steer = 0;
     this.input.brake = false;
+    this.input.throttle = 1;          // or a Manual race leaks into the next Easy one
 
     const rivalCount = opts.rivals ?? (this.challenge ? this.challenge.rivals : 0);
     const diff = this.challenge ? this.challenge.difficulty : 0.5;
@@ -175,7 +184,7 @@ const Game = {
       n: (gridPos % 2 === 0 ? -1 : 1) * RULES.gridLane,
       v: 0, vn: 0,
       lap: 0, lapStart: 0, grass: 0, sliding: 0,
-      brake: false, finished: false, finishTime: 0, place: 0,
+      brake: false, throttle: 1, finished: false, finishTime: 0, place: 0,
       stats: def.isPlayer ? this.stats : {
         grip: RULES.grip * (def.grip ?? 1),
         top: RULES.topSpeed * def.pace,
@@ -198,8 +207,12 @@ const Game = {
     }
 
     this.time += dt;
+    // Finished cars are still driven. Skipping them froze a rival stone dead on
+    // the tarmac the instant it took the flag — still drawn, still on the
+    // minimap, and intangible, so the player drove straight through it. They now
+    // do a cool-down lap instead. `finish()` early-returns once `finished` is
+    // set, so nothing here can fire twice.
     for (const car of this.cars) {
-      if (car.finished) continue;
       this.drive(car, dt);
       this.step(car, dt);
     }
@@ -221,6 +234,7 @@ const Game = {
     if (car.isPlayer) {
       car.steer = this.input.steer;
       car.brake = this.input.brake;
+      car.throttle = this.manual ? Math.max(0, Math.min(1, this.input.throttle)) : 1;
       if (this.assist) {
         // The assist is deliberately a shade slower than a good manual driver:
         // it aims at 90% of what each corner would actually take. A child can
@@ -230,6 +244,15 @@ const Game = {
       }
       return;
     }
+    // Past the flag it is a cool-down lap, not a second race. A car that has
+    // already banked its position must still be there to drive around, but it
+    // must not be racing hard enough to take a place off somebody who is.
+    if (car.finished) {
+      car.steer = this.aim(car);
+      car.brake = car.v > car.stats.top * 0.55;
+      return;
+    }
+
     car.steer = this.aim(car);
     car.brake = this.needBrake(car, car.aggr);
 
@@ -249,7 +272,9 @@ const Game = {
     const t = this.track, half = t.len / 2;
     let best = null, closest = Infinity;
     for (const o of this.cars) {
-      if (o === car || o.finished) continue;
+      // Finished cars still count as traffic — they are on a slow lap, which is
+      // exactly the thing a driver most needs to see coming.
+      if (o === car) continue;
       let dS = o.s - car.s;
       if (dS > half) dS -= t.len; else if (dS < -half) dS += t.len;
       if (dS <= 1 || dS > maxS) continue;
@@ -304,6 +329,23 @@ const Game = {
     const k = inCorner ? near : far;
     const strength = Math.min(1, Math.abs(k) * 300);
     let ideal = (inCorner ? 1 : -1) * Math.sign(k) * t.halfW * 0.78 * car.line * strength;
+
+    // How much ROOM is there to use a racing line? Crossing the track takes a
+    // car most of a second, so through a sequence of corners the outside-in-out
+    // line costs distance that the next corner never lets you bank, and driving
+    // centrally is genuinely quicker. A driver that insisted on the full line
+    // everywhere averaged 117 on a twisty circuit while a car holding no input
+    // at all averaged 134 — and duly won the race. Count the direction changes
+    // ahead and stop reaching for a line there is no room for.
+    let flips = 0, last = 0;
+    for (let d = 10; d <= 260; d += 26) {
+      const kk = t.curvAt(car.s + d);
+      if (Math.abs(kk) < 0.004) continue;
+      const sg = Math.sign(kk);
+      if (last && sg !== last) flips++;
+      last = sg;
+    }
+    ideal *= flips >= 2 ? 0.35 : flips === 1 ? 0.7 : 1;
 
     // Overtaking. On a two-car grid a driver who cannot see the car in front is
     // merely rude; in a pack of eight it is the difference between racing and
@@ -377,7 +419,7 @@ const Game = {
     // — and on an open circuit the quickest way round was to never lift at
     // all. Cutting it is what finally made the corner limit mean something.
     if (car.brake) car.v -= car.stats.brake * dt;
-    else if (!sliding) car.v += car.stats.accel * dt * Math.max(0.15, 1 - car.v / Math.max(40, top));
+    else if (!sliding) car.v += car.stats.accel * dt * car.throttle * Math.max(0.15, 1 - car.v / Math.max(40, top));
     car.v -= RULES.drag * car.v * dt;
     car.v = Math.max(0, Math.min(car.v, top * 1.25));
 
@@ -449,7 +491,8 @@ const Game = {
     for (let i = 0; i < this.cars.length; i++) {
       for (let j = i + 1; j < this.cars.length; j++) {
         const a = this.cars[i], b = this.cars[j];
-        if (a.finished || b.finished) continue;
+        // Finished cars stay solid. An intangible one you can drive through is
+        // more jarring than anything a collision does.
         let dS = a.s - b.s;
         if (dS > half) dS -= t.len; else if (dS < -half) dS += t.len;
         const dN = a.n - b.n;
@@ -545,6 +588,7 @@ const Game = {
 
     const res = {
       mode: this.mode,
+      classification: this.classify(),
       challengeIdx: this.challengeIdx,
       place, field, beat, stars, coins,
       time, bestLap: this.bestLap, par: this.par, underPar, clean,
@@ -557,13 +601,57 @@ const Game = {
       timedOut: time > RULES.maxRaceTime,
     };
     this.result = res;
-    if (typeof App !== "undefined" && App.raceOver) App.raceOver(res);
+    // `silent` is for offline probes — the generator races a circuit against
+    // itself to check it is worth driving, and that must not fling the results
+    // screen up in the middle of a button press.
+    if (!this.silent && typeof App !== "undefined" && App.raceOver) App.raceOver(res);
     return res;
+  },
+
+  // Quitting is reachable only from inside the pause sheet, so it has to undo
+  // the pause as well as end the race. `showScreen` does not close modals, so
+  // leaving `paused` set and the sheet open left it floating over the map with
+  // the next race already unable to start.
+  // The full finishing order, for the results screen.
+  //
+  // Ordering is stated once and only once: cars that took the flag, by WHEN
+  // they took it; then everyone still out there, by how far they have gone.
+  // Sorting the whole field by distance would be wrong for the reason recorded
+  // above — a finished car's distance freezes a hair past the line, so the
+  // order would come down to who overshot it by more.
+  classify() {
+    const t = this.track;
+    const target = this.laps * t.len;
+    const order = this.cars.slice().sort((a, b) =>
+      (a.finished === b.finished
+        ? (a.finished ? a.finishTime - b.finishTime : b.raced - a.raced)
+        : (a.finished ? -1 : 1)));
+    const lead = order[0];
+    return order.map((c, i) => {
+      c.place = i + 1;
+      const behind = Math.max(0, target - c.raced);
+      // A car still on track has no time yet, so estimate one from ITS OWN
+      // average pace rather than the leader's — otherwise a slow car's gap
+      // reads as far better than it is going to be.
+      const pace = Math.max(20, (c.raced - c.startS) / Math.max(0.001, this.time));
+      const at = c.finished ? c.finishTime : this.time + behind / pace;
+      return {
+        place: i + 1,
+        name: c.name, emoji: c.emoji, body: c.body,
+        isPlayer: !!c.isPlayer,
+        finished: !!c.finished,
+        time: c.finished ? c.finishTime : 0,
+        gap: at - (lead.finished ? lead.finishTime : this.time),
+        lapsDown: Math.floor(behind / t.len),
+      };
+    });
   },
 
   quit() {
     this.running = false;
+    this.paused = false;
     this.phase = "done";
+    if (typeof GK !== "undefined") GK.UI.closeModal("modal-pause");
     if (typeof App !== "undefined" && App.raceOver) App.raceOver(null, true);
   },
 

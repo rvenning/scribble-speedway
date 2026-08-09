@@ -37,10 +37,20 @@ finish, and a Daily Circuit with a clock on it for everybody else.
   repaired silently; only a shape that genuinely cannot be raced is refused, and
   it comes back with one friendly sentence saying which.
 - **"Draw it for me"** generates a valid circuit for any challenge, so nobody is
-  ever stuck on the drawing.
-- **Auto-brake** is on by default and slows the car for corners on its own. It
-  is deliberately a shade slower than a good manual driver, so turning it off is
-  where the time is — one physics model, no second game.
+  ever stuck on the drawing. Circuits are composed from features — hairpins,
+  chicanes, S-bends, long sweeps and genuine straights — and the generator
+  refuses any circuit where driving does not measurably beat *not* driving.
+- **"Fix my track"** appears whenever a drawing has a problem, and always
+  produces something raceable: it relaxes the shape much harder than the live
+  pipeline can afford to, resizes it, untangles a figure-8 by keeping the larger
+  lobe, and failing all that rebuilds a circuit in the shape you drew.
+- **Three driving modes, one physics.** *Easy* (the default) drives the throttle
+  and brakes for you — one thumb, steering only. *Easy + brake* hands you the
+  brake pedal. *Manual* gives you the throttle too, with a speed readout. The
+  auto-brake is deliberately a shade slower than a good manual driver, so
+  turning it off is where the time is.
+- **A full classification** at the end of every race — all eight cars, gaps to
+  the leader, and an estimate for anyone still on track.
 - **Grip you can lose.** Go into a corner too fast and the car runs wide, the
   throttle cuts, and the grip you have left drops until you lift — so a slide is
   something you drive out of rather than something that quietly costs you a
@@ -71,7 +81,7 @@ No build step — plain `<script>` tags.
 | File | Purpose |
 |---|---|
 | `js/track.js` | **The heart.** Scribble → circuit: resample, smooth, relax, lint. Arc-length sampling, curvature, `toWorld(s, n)`, corner speed limits, the ideal-lap solver, and save/load encoding. |
-| `js/generate.js` | Seeded circuits, built in polar coordinates so they cannot cross themselves. Powers "draw it for me" and the Daily field. |
+| `js/generate.js` | Seeded circuits: a radius profile composed from track features, built in polar coordinates so they cannot cross themselves, and legalised in the radius domain so the features survive. Powers "draw it for me", "fix my track" and the Daily field. |
 | `js/game.js` | The race. DOM-free, canvas-free, no `Math.random` — a car's whole state is `(s, n, v)`. |
 | `js/ghost.js` | Ghost laps, sampled at 96 stations around the lap and packed into ~480 characters. |
 | `js/draw.js` | The drawing board, plus the shared `Paint` helpers both canvases use. |
@@ -82,12 +92,13 @@ No build step — plain `<script>` tags.
 ### Tests
 
 ```
-npm test                        # 61 tests
+npm test                        # 64 tests
 node tests/bot.test.js --report # the per-challenge balance table
 ```
 
 - `tests/track.test.js` — 160 synthetic hands must all become raceable circuits;
-  the shapes that cannot be raced must be refused *by name*.
+  the shapes that cannot be raced must be refused *by name*; and the "fix my
+  track" ladder must rescue every one of them.
 - `tests/generate.test.js` — every challenge and a year of Daily fields are
   solvable, from any seed. This is the anti-stuck guarantee.
 - `tests/bot.test.js` — three drivers over the whole campaign: an `ace` that

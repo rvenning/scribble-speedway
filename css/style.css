@@ -119,7 +119,8 @@ h3.sec { font-size: 15px; letter-spacing: .5px; text-transform: uppercase; opaci
 .draw-hint.bad { background: rgba(255,120,120,.22); }
 .draw-hint.good { background: rgba(90,220,130,.22); }
 .draw-bar {
-  flex: none; display: flex; gap: 8px; align-items: center; justify-content: center;
+  flex: none; display: flex; flex-wrap: wrap; gap: 8px;
+  align-items: center; justify-content: center;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   background: rgba(0,0,0,.28);
 }
@@ -145,25 +146,48 @@ h3.sec { font-size: 15px; letter-spacing: .5px; text-transform: uppercase; opaci
 #cv, #cv-draw { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 
 /* Floated INSIDE the stage rather than stacked above it, so showing and hiding
-   it never reflows the playfield. */
-.brake-pedal {
-  position: absolute; left: 50%; transform: translateX(-50%);
-  bottom: calc(10px + env(safe-area-inset-bottom));
-  width: 84px; height: 46px; border: none; border-radius: 14px;
+   a pedal never reflows the playfield. The pair sits either side of centre,
+   inside the gentle part of the steering range (full lock is 33% of the width
+   out from the middle), and a touch on a button never reaches the canvas. */
+.pedal {
+  position: absolute; bottom: calc(10px + env(safe-area-inset-bottom));
+  width: 80px; height: 48px; border: none; border-radius: 14px;
   font-size: 22px; font-family: inherit; cursor: pointer;
   background: rgba(255,255,255,.28); color: var(--ss-paper);
   box-shadow: 0 4px 0 rgba(0,0,0,.4);
-  display: none;
+  display: none; touch-action: none;
 }
-.brake-pedal.on { display: block; }
-.brake-pedal:active { transform: translateX(-50%) translateY(3px); box-shadow: none; }
+.pedal.on { display: block; }
+.brake-pedal { left: 50%; transform: translateX(calc(-100% - 6px)); }
+.gas-pedal   { left: 50%; transform: translateX(6px); }
+/* `.held` as well as `:active`, because the pointer is captured on press and
+   :active can lapse while a finger is still down. */
+.brake-pedal:active, .brake-pedal.held {
+  transform: translateX(calc(-100% - 6px)) translateY(3px); box-shadow: none;
+}
+.gas-pedal:active, .gas-pedal.held {
+  transform: translateX(6px) translateY(3px); box-shadow: none;
+}
 
 /* -------------------------------- results -------------------------------- */
+/* `margin:auto` rather than `justify-content:center`, copying the fix gk-base
+   already documents for .splash-inner. `.screen` is overflow-y:auto, and
+   centring inside a scroll container clips content taller than the viewport at
+   BOTH ends — the top becomes unreachable. Eight classification rows add about
+   420px, which triggers it on a phone. With auto margins a short result is
+   still centred and a tall one scrolls. */
 .res-inner {
-  min-height: 100%; width: 100%; max-width: 480px; margin: 0 auto;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 6px; padding: 24px; text-align: center;
+  width: 100%; max-width: 480px; margin: auto;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 18px 24px calc(24px + env(safe-area-inset-bottom));
+  text-align: center;
 }
+.res-class { width: 100%; margin: 6px 0 2px; }
+.res-class .lb-row { margin: 5px 0; padding: 7px 12px; }
+.res-class .lb-rank { font-size: 18px; }
+.res-class .lb-avatar { font-size: 24px; }
+.res-class .lb-gap { font-size: 14px; font-weight: 700; opacity: .85; white-space: nowrap; }
+.res-class .lb-row.out .lb-gap { opacity: .6; font-style: italic; }
 .res-emoji { font-size: 56px; animation: bob 2s ease-in-out infinite; }
 .res-title { font-size: 27px; color: var(--ss-sun); }
 .res-stars { font-size: 30px; color: var(--ss-sun); letter-spacing: 3px; }
