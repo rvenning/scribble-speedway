@@ -56,7 +56,7 @@ const Engine = {
     bg.gain.setValueAtTime(0.35, ctx.currentTime);
     a.connect(g); b.connect(bg).connect(g);
     a.start(); b.start();
-    this.nodes = { g, a, b };
+    this.nodes = { g, a, b, bg };
     this.on = true;
   },
 
@@ -84,9 +84,13 @@ const Engine = {
 
   stop() {
     if (!this.on) return;
-    const { g, a, b } = this.nodes;
+    const { g, a, b, bg } = this.nodes;
     const t = Sfx.ctx.currentTime;
     g.gain.setTargetAtTime(0.0001, t, 0.05);
+    // Release the whole engine once it has faded: WebKit keeps connected nodes
+    // in the render graph after they stop, and a new engine is built every race
+    // (see gamekit gk-audio.js _track).
+    a.onended = () => { for (const n of [a, b, bg, g]) { try { n.disconnect(); } catch (e) { /* gone */ } } };
     try { a.stop(t + 0.4); b.stop(t + 0.4); } catch (e) { /* already stopped */ }
     this.on = false;
     // Clearing `muted` here is not tidiness: quitting from the pause sheet
