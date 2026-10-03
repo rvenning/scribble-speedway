@@ -1,6 +1,6 @@
 <!doctype html><meta charset="utf-8"><title>Scribble Speedway racing test bench</title>
 <style>body{height:100dvh;display:flex;flex-direction:column;margin:0;background:#152435;color:#eef7ff;font:14px system-ui}header{padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}button{padding:8px;border:0;border-radius:8px;background:#ffda72;color:#152435;font-weight:bold}iframe{width:100%;flex:1;min-height:0;border:0}output{font-size:12px;overflow-wrap:anywhere;max-width:100%}header{flex-shrink:0}header[hidden]{display:none}</style>
-<header><b>Racing test bench</b><button onclick="run(0)">Meadow race</button><button onclick="run(6)">Cove race</button><button onclick="run(11)">Woods race</button><button onclick="run(16)">Mountain race</button><button onclick="run(0,true)">Drift test</button><button onclick="bend()">Hold bend</button><button onclick="releaseBoost()">Release boost</button><button onclick="memory()">600-frame memory check</button><select id="avatar" aria-label="Driver avatar"><option>🏎️</option><option>🦊</option><option>🐰</option><option>🐱</option><option>🦄</option><option>🐼</option><option>🐸</option><option>🐥</option><option>🦖</option><option>🐙</option><option>🦉</option><option>🏁</option></select><button onclick="live()">Drive live</button><button onclick="grid()">Meet the racers</button><button onclick="document.querySelector('header').hidden=true">Full race view</button><output id="status">Ready</output></header>
+<header><b>Racing test bench</b><button onclick="run(0)">Meadow race</button><button onclick="run(6)">Cove race</button><button onclick="run(11)">Woods race</button><button onclick="run(16)">Mountain race</button><button onclick="run(0,true)">Drift test</button><button onclick="bend()">Hold bend</button><button onclick="releaseBoost()">Release boost</button><button onclick="memory()">600-frame memory check</button><select id="avatar" aria-label="Driver avatar"><option>🏎️</option><option>🦊</option><option>🐰</option><option>🐱</option><option>🦄</option><option>🐼</option><option>🐸</option><option>🐥</option><option>🦖</option><option>🐙</option><option>🦉</option><option>🏁</option></select><button onclick="live()">Drive live</button><button onclick="grid()">Meet the racers</button><button onclick="openFinish()">Finish open race</button><button onclick="document.querySelector('header').hidden=true">Full race view</button><output id="status">Ready</output></header>
 <iframe id="game" src="../index.html"></iframe>
 <script>
 const frame = document.getElementById('game'), out = document.getElementById('status');
@@ -44,6 +44,15 @@ function releaseBoost() {
     Game.paused=true;Render.render(0);Render.hud();
     return JSON.stringify({tier,boost:me.boosting.toFixed(2),speed:Math.round(me.v)});
   })()`); } catch(e) {out.textContent=e.message;}
+}
+function openFinish() {
+  try {out.textContent=frame.contentWindow.eval(`(() => {
+    App.profile=Storage.getProfiles().find(p=>p.name==='Race Trial') || Storage.addProfile('Race Trial',${JSON.stringify(document.getElementById('avatar').value)},null);
+    const before=Storage.coins(App.progress());App.quickRace();Game.phase='race';Game.countdown=0;
+    const me=Game.cars[0];
+    for(let i=0;i<120*180 && Game.running;i++) {Game.input.steer=Game.aim(me);Game.input.brake=false;Game.update(1/120);if(i%24===0 && Game.running) Race3D.render(.2,Render.W,Render.H);Game.events.length=0;}
+    return JSON.stringify({screen:GK.UI.screen,seconds:Game.time.toFixed(1),width:Game.track.halfW*2,length:Math.round(Game.track.len),laps:Game.laps,coins:Storage.coins(App.progress())-before});
+  })()`);}catch(e){out.textContent=e.message;}
 }
 function live() {
   run(0);

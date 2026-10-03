@@ -65,7 +65,7 @@ const Paint = {
   // Tarmac. Stroking the centre line with a round-capped line of the track's
   // own width is the whole renderer: the road drawn is the road the physics
   // uses, because both come from the same points.
-  ribbon(ctx, line, view, { road = "#4d5661", verge = "#e8e2cf", dashes = true } = {}) {
+  ribbon(ctx, line, view, { road = "#4d5661", verge = "#e8e2cf", dashes = true, width = TRACK_W } = {}) {
     if (!line || line.length < 3) return;
     const path = new Path2D();
     path.moveTo(view.ox + line[0].x * view.s, view.oy + line[0].y * view.s);
@@ -74,10 +74,10 @@ const Paint = {
 
     ctx.lineJoin = "round"; ctx.lineCap = "round";
     ctx.strokeStyle = verge;
-    ctx.lineWidth = (TRACK_W + 12) * view.s;
+    ctx.lineWidth = (width + 12) * view.s;
     ctx.stroke(path);
     ctx.strokeStyle = road;
-    ctx.lineWidth = TRACK_W * view.s;
+    ctx.lineWidth = width * view.s;
     ctx.stroke(path);
 
     if (dashes && view.s > 0.12) {
@@ -96,7 +96,7 @@ const Paint = {
   // direction the physics uses — so a band spanning local y from -HALF_W to
   // +HALF_W covers the tarmac and nothing else. Rotating by the normal instead
   // lays the whole thing lengthways down the road, which is what it did.
-  startLine(ctx, line, view) {
+  startLine(ctx, line, view, halfWidth = HALF_W) {
     if (!line || line.length < 3) return;
     const a = line[0], b = line[1];
     const d = Math.hypot(b.x - a.x, b.y - a.y) || 1;
@@ -106,7 +106,7 @@ const Paint = {
     ctx.translate(view.ox + a.x * view.s, view.oy + a.y * view.s);
     ctx.rotate(Math.atan2(ty, tx));
 
-    const half = HALF_W * view.s;
+    const half = halfWidth * view.s;
     const depth = 8 * view.s;               // how far along the track it reaches
     const cells = 8;
     const cw = (half * 2) / cells;

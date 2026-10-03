@@ -28,6 +28,7 @@ const S = loadScripts({
     "js/ghost.js",
     "js/game.js",
     "js/kart.js",
+    "js/race-courses.js",
   ],
   exports: [
     "GK", "__reseed", "__rand",
@@ -38,7 +39,7 @@ const S = loadScripts({
     "UPGRADES", "upgradeValue", "carStats",
     "CHAPTERS", "CHALLENGES", "parTime",
     "Ghost",
-    "RULES", "Game", "Kart",
+    "RULES", "Game", "Kart", "RaceCourses",
   ],
   browser: true,
   globals: {

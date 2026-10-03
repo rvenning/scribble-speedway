@@ -238,12 +238,13 @@ const Render = {
     // Grass painted well past the field edge, so a corner of the circuit near
     // the boundary never shows a hard edge with nothing beyond it.
     ctx.fillStyle = ch.grass;
-    ctx.fillRect(-600, -600, FIELD.w + 1200, FIELD.h + 1200);
+    const field=t.courseField || FIELD;
+    ctx.fillRect(-600, -600, field.w + 1200, field.h + 1200);
     ctx.fillStyle = "rgba(255,255,255,.05)";
-    for (let x = -600; x < FIELD.w + 600; x += 84) ctx.fillRect(x, -600, 42, FIELD.h + 1200);
+    for (let x = -600; x < field.w + 600; x += 84) ctx.fillRect(x, -600, 42, field.h + 1200);
 
-    Paint.ribbon(ctx, t.pts, view);
-    Paint.startLine(ctx, t.pts, view);
+    Paint.ribbon(ctx, t.pts, view, {width:t.halfW*2});
+    Paint.startLine(ctx, t.pts, view, t.halfW);
     Paint.obstacles(ctx, Game.obstacles, view);
     Paint.gates(ctx, Game.gates, view, this.t);
 
@@ -353,15 +354,16 @@ const Render = {
 
   // The circuit the player drew, small, with everybody on it.
   minimap(ctx, t) {
-    const w = Math.min(112, this.W * 0.3), h = (w * FIELD.h) / FIELD.w;
+    const field = t.courseField || FIELD;
+    const w = Math.min(112, this.W * 0.3), h = (w * field.h) / field.w;
     const x = this.W - w - 8, y = 8;
     ctx.save();
     ctx.globalAlpha = 0.82;
     ctx.fillStyle = "rgba(12,20,14,.6)";
     ctx.fillRect(x, y, w, h);
-    const v = { s: w / FIELD.w, ox: x, oy: y };
+    const v = { s: w / field.w, ox: x, oy: y };
     ctx.strokeStyle = "rgba(255,255,255,.55)";
-    ctx.lineWidth = Math.max(2, TRACK_W * v.s * 0.8);
+    ctx.lineWidth = Math.max(2, t.halfW * 2 * v.s * 0.8);
     ctx.lineJoin = ctx.lineCap = "round";
     ctx.beginPath();
     t.pts.forEach((p, i) => (i ? ctx.lineTo(v.ox + p.x * v.s, v.oy + p.y * v.s) : ctx.moveTo(v.ox + p.x * v.s, v.oy + p.y * v.s)));

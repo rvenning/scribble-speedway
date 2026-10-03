@@ -33,7 +33,7 @@ const PROGRESS = {
     daily: null,          // { date, line, score, time, ghost, plays }
     bestDaily: 0,         // all-time best Daily score — the leaderboard headline
     dailyDays: 0,
-    races_run: 0,
+    races_run: 0, openWins:0, wideBestDaily:0,
     updated: 0,
   }),
 
@@ -63,6 +63,7 @@ const PROGRESS = {
       if (!cur) { byId.set(t.id, { ...t }); continue; }
       if ((t.best || 0) > 0 && (!cur.best || t.best < cur.best)) { cur.best = t.best; cur.ghost = t.ghost; }
       if ((t.kartBest || 0) > 0 && (!cur.kartBest || t.kartBest < cur.kartBest)) { cur.kartBest = t.kartBest; cur.kartGhost = t.kartGhost; }
+      if ((t.wideBest || 0) > 0 && (!cur.wideBest || t.wideBest < cur.wideBest)) { cur.wideBest = t.wideBest; cur.wideGhost = t.wideGhost; }
       cur.name = cur.name || t.name;
       cur.line = cur.line || t.line;
     }
@@ -88,6 +89,13 @@ const PROGRESS = {
       }
     }
 
+    if(a.daily && b.daily && a.daily.date===b.daily.date) {
+      const wide=(a.daily.wideScore||0)>=(b.daily.wideScore||0)?a.daily:b.daily;
+      if(a.daily.line!==b.daily.line) {
+        if(wide.wideScore>0) daily={...wide};
+      } else daily={...daily,wideScore:wide.wideScore||0,wideTime:wide.wideTime||0,wideGhost:wide.wideGhost||null,widePlays:Math.max(a.daily.widePlays||0,b.daily.widePlays||0)};
+    }
+
     return {
       // Spread first so a field a newer client added survives an older
       // client's merge, then pin what we know how to reconcile.
@@ -96,6 +104,8 @@ const PROGRESS = {
       coinsSpent: Math.max(a.coinsSpent || 0, b.coinsSpent || 0),
       bestDaily: Math.max(a.bestDaily || 0, b.bestDaily || 0),
       kartBestDaily: Math.max(a.kartBestDaily || 0, b.kartBestDaily || 0),
+      openWins: Math.max(a.openWins||0,b.openWins||0),
+      wideBestDaily: Math.max(a.wideBestDaily||0,b.wideBestDaily||0),
       dailyDays: Math.max(a.dailyDays || 0, b.dailyDays || 0),
       races_run: Math.max(a.races_run || 0, b.races_run || 0),
       skins: [...new Set([...(a.skins || []), ...(b.skins || [])])],
@@ -146,11 +156,20 @@ Object.assign(Storage, {
     return prog;
   },
 
+  recordOpenRace(profileId,res) {
+    const prog=this.getProgress(profileId);
+    prog.coinsEarned=(prog.coinsEarned||0)+(res.coins||0);
+    prog.races_run=(prog.races_run||0)+1;
+    if(res.place===1) prog.openWins=(prog.openWins||0)+1;
+    this.saveProgress(profileId,prog);return prog;
+  },
+
   /* ------------------------------------------------------ daily circuit -- */
 
   // The player's own drawing for today, locked once they have raced it so the
   // ghost they chase is a lap of the SAME track.
-  dailyFor(p, date) {
+  dailyFor(p, date, handling = 2) {
+    if(handling===3) return p.daily && p.daily.date===date ? {...p.daily,score:p.daily.wideScore||0,time:p.daily.wideTime||0,ghost:p.daily.wideGhost||null,plays:p.daily.widePlays||0} : null;
     return p.daily && p.daily.date === date ? { ...p.daily, score: p.daily.kartScore || 0,
       time: p.daily.kartTime || 0, ghost: p.daily.kartGhost || null, plays: p.daily.kartPlays || 0 } : null;
   },
@@ -168,6 +187,12 @@ Object.assign(Storage, {
   recordDaily(profileId, date, res) {
     const prog = this.getProgress(profileId);
     if (!prog.daily || prog.daily.date !== date) return prog;
+    if(res.handling===3) {
+      prog.daily.widePlays=(prog.daily.widePlays||0)+1;
+      if(res.score>(prog.daily.wideScore||0)) {prog.daily.wideScore=res.score;prog.daily.wideTime=res.time;prog.daily.wideGhost=res.ghost||null;}
+      prog.wideBestDaily=Math.max(prog.wideBestDaily||0,res.score||0);
+      prog.races_run=(prog.races_run||0)+1;this.saveProgress(profileId,prog);return prog;
+    }
     if (res.handling === 2) {
       prog.daily.kartPlays = (prog.daily.kartPlays || 0) + 1;
       if (res.score > (prog.daily.kartScore || 0)) {
@@ -216,6 +241,12 @@ Object.assign(Storage, {
     const prog = this.getProgress(profileId);
     const t = (prog.tracks || []).find((x) => x.id === id);
     if (!t) return prog;
+    if(res.handling===3) {
+      if(res.bestLap && (!t.wideBest || res.bestLap<t.wideBest)) {t.wideBest=res.bestLap;t.wideGhost=res.ghost||null;}
+      // Open racing already counted this finish when awarding its coins.
+      if(res.mode!=="race") prog.races_run=(prog.races_run||0)+1;
+      this.saveProgress(profileId,prog);return prog;
+    }
     if (res.handling === 2) {
       if (res.bestLap && (!t.kartBest || res.bestLap < t.kartBest)) {
         t.kartBest = res.bestLap; t.kartGhost = res.ghost || null;
@@ -247,10 +278,11 @@ Object.assign(Storage, {
   },
 
   // Every family lap on one circuit, quickest first — the ghost picker.
-  lapsOn(trackId) {
+  lapsOn(trackId, handling = 2) {
     const out = [];
     for (const p of this.getProfiles()) {
       const t = (this.getProgress(p.id).tracks || []).find((x) => x.id === trackId);
+      if(handling===3) {if(t && t.wideBest>0 && t.wideGhost) out.push({profile:p,best:t.wideBest,ghost:t.wideGhost});continue;}
       if (t && t.kartBest > 0 && t.kartGhost) out.push({ profile: p, best: t.kartBest, ghost: t.kartGhost });
     }
     return out.sort((a, b) => a.best - b.best);

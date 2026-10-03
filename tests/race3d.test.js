@@ -81,3 +81,11 @@ test('reduced motion removes hopping, chassis lean and camera banking immediatel
     assert.equal(chassis.position.y,0);assert.equal(chassis.rotation.x,0);assert.equal(Math.abs(chassis.rotation.z),0);assert.equal(view.cameraRoll,0);
   } finally {context.window.matchMedia=()=>({matches:false});}
 });
+
+test('longer courses build a matching wide 3D road and scaled scenery without extra draws',()=>{
+  const source=setup(),course=S.RaceCourses.make(source,{obstacles:[{kind:'tree',x:350,y:500,r:30}]});
+  S.Game.start({...course,mode:'race',handling:3,rivals:7,laps:3,silent:true});view.build();
+  let meshes=0;view.world.traverse(o=>{if(o.isMesh){meshes++;assert.ok(Array.from(o.geometry.getAttribute('position').array).every(Number.isFinite));}});
+  assert.ok(meshes<70);assert.equal(view.track.halfW,55);assert.equal(view.models.length,8);
+  assert.equal(S.Game.obstacles[0].x,350*course.scale);
+});
