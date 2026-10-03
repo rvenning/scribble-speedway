@@ -158,6 +158,25 @@ h3.sec { font-size: 15px; letter-spacing: .5px; text-transform: uppercase; opaci
   display: none; touch-action: none;
 }
 .pedal.on { display: block; }
+#race-3d { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#cv.overlay { position: absolute; inset: 0; z-index: 1; background: transparent; }
+.pedal { z-index: 3; }
+.drift-pedal { right: 18px; bottom: 22px; width: 88px; height: 70px; font-size: 15px; font-weight: 900; background: #e5b736; color: #182638; border: 2px solid #ffedab; }
+.drift-pedal.held { background: #66d5eb; transform: translateY(3px); }
+.drift-pedal.charged { background: #66e7f4; box-shadow: 0 0 22px #6de8ff; }
+.steer-pedal { bottom: 42px; width: 54px; height: 54px; font-size: 27px; background: #23364ecc; border: 2px solid #ffffff80; }
+.steer-left { left: 16px; } .steer-right { left: 78px; }
+.steer-pedal.held { background: #427090; }
+#race-message { position: absolute; top: 26%; left: 10px; right: 10px; z-index: 2; text-align: center; font-weight: 900; font-size: clamp(16px, 3vw, 25px); color: #ffe68f; text-shadow: 0 2px 4px #142636; pointer-events: none; }
+#race-message.boost { color: #9bf4ff; }
+.steer-guide { position: absolute; bottom: 18px; left: 20px; z-index: 2; color: #fff; text-shadow: 0 2px 3px #142636; font-size: 12px; pointer-events: none; }
+@media (max-width: 420px) {
+  .drift-pedal { right: 10px; width: 74px; }
+  .pedal.brake-pedal { left: 50%; width: 48px; }
+  .pedal.gas-pedal { left: 50%; width: 48px; }
+  .steer-pedal { width: 46px; height: 54px; } .steer-left { left: 10px; } .steer-right { left: 62px; }
+}
+@media (prefers-reduced-motion: reduce) { .drift-pedal.charged { box-shadow: none; } }
 .brake-pedal { left: 50%; transform: translateX(calc(-100% - 6px)); }
 .gas-pedal   { left: 50%; transform: translateX(6px); }
 /* `.held` as well as `:active`, because the pointer is captured on press and

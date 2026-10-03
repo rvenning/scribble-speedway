@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><title>Scribble Speedway racing test bench</title>
+<style>body{margin:0;background:#152435;color:#eef7ff;font:14px system-ui}header{padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}button{padding:8px;border:0;border-radius:8px;background:#ffda72;color:#152435;font-weight:bold}iframe{width:100%;height:calc(100vh - 78px);border:0}output{font-size:12px}</style>
+<header><b>Racing test bench</b><button onclick="run(0)">Meadow race</button><button onclick="run(6)">Cove race</button><button onclick="run(11)">Woods race</button><button onclick="run(16)">Mountain race</button><button onclick="run(0,true)">Drift test</button><button onclick="memory()">600-frame memory check</button><output id="status">Ready</output></header>
+<iframe id="game" src="../index.html"></iframe>
+<script>
+const frame = document.getElementById('game'), out = document.getElementById('status');
+function run(index, drift=false) {
+  try {
+    const result = frame.contentWindow.eval(`(() => {
+      const challenge = CHALLENGES[${index}];
+      const spec = {obstacles:challenge.obstacles,gates:challenge.gates,minLen:challenge.minLen,maxLen:challenge.maxLen};
+      const generated = Generate.solve(spec,{seed:100+${index}});
+      App.profile = {id:'race-lab',name:'Test Driver',avatar:'🏎️'};
+      Game.start({track:generated.track, challenge, challengeIdx:${index}, silent:true,assist:false,profile:App.profile});
+      App.showScreen('game'); App.syncDriving(); Render.resize();
+      Game.phase='race'; Game.countdown=0;
+      const me = Game.cars[0];
+      for(let i=0;i<960 && Game.running;i++) {
+        Game.input.steer=Game.aim(me); Game.input.brake=Game.needBrake(me,.95);
+        Game.input.drift=${drift} && i>300 && i<800;
+        Game.update(1/120); Game.events.length=0;
+      }
+      Game.paused=true; Race3D.render(1/60,Render.W,Render.H); Render.render(0); Render.hud();
+      return JSON.stringify({time:Game.time.toFixed(1),speed:Math.round(me.v),offset:me.n.toFixed(1),charge:me.driftCharge,boost:me.boosting,geometry:Race3D.renderer.info.memory.geometries});
+    })()`);
+    out.textContent=result;
+  } catch(e) {out.textContent=e.message;}
+}
+function memory() {
+  try { out.textContent=frame.contentWindow.eval(`(() => {
+    const before=Race3D.renderer.info.memory.geometries;
+    for(let i=0;i<600;i++) Race3D.render(1/120,Render.W,Render.H);
+    const after=Race3D.renderer.info.memory.geometries;
+    return JSON.stringify({before,after,stable:before===after,calls:Race3D.renderer.info.render.calls});
+  })()`); } catch(e) {out.textContent=e.message;}
+}
+</script>

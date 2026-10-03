@@ -62,8 +62,8 @@ const CARS = {
   // ramps put the field within a second of each other everywhere, and then the
   // child never finished better than fifth.
   tune: {
-    paceBase: 0.74, paceSpan: 0.28,
-    gripBase: 0.78, gripSpan: 0.18,
+    paceBase: 0.34, paceSpan: 0.70,
+    gripBase: 0.54, gripSpan: 0.42,
     drop: 0.025,
   },
 

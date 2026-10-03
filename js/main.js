@@ -30,7 +30,7 @@ const App = {
       storage: Storage,
       avatars: AVATARS,
       meta: (p, prog) =>
-        `⭐ ${Storage.totalStars(prog)}/${CHALLENGES.length * 3} · 📓 ${(prog.tracks || []).length} · 🏆 ${prog.bestDaily || 0}`,
+        `⭐ ${Storage.totalStars(prog)}/${CHALLENGES.length * 3} · 📓 ${(prog.tracks || []).length} · 🏆 ${prog.kartBestDaily || 0}`,
       onEnter: (p) => { this.profile = p; this.showMap(); },
       addLabel: "New Driver",
     });
@@ -109,7 +109,7 @@ const App = {
     }
     this.el("btn-brake").classList.toggle("on", this.manual || !this.assist);
     this.el("btn-throttle").classList.toggle("on", this.manual);
-    this.el("hud-speed").style.display = this.manual ? "" : "none";
+    this.el("hud-speed").style.display = "";
   },
 
   /* ------------------------------- splash -------------------------------- */
@@ -273,7 +273,7 @@ const App = {
       if (res.place === 1) Fx.confetti(Render.W, Render.H, ["#ffc23d", "#8ee06a", "#4d9dff", "#ff9f2e"], 60);
     } else if (res.mode === "daily") {
       const date = RNG.today();
-      const before = this.progress().daily || {};
+      const before = Storage.dailyFor(this.progress(), date) || {};
       const best = res.score > (before.score || 0);
       Storage.recordDaily(this.profile.id, date, res);
       emoji.textContent = best ? "🏆" : "🏁";
@@ -362,7 +362,7 @@ const App = {
           <span class="track-name">${GK.util.esc(t.name)}</span>
           <span class="track-meta">${t.ownerAvatar || "🏎️"} ${GK.util.esc(t.by || t.ownerName || "")}${
             lead ? ` · ⚡ ${lead.best.toFixed(2)}s ${lead.profile.avatar}` : " · no lap yet"}${
-            own && own.best ? ` · you ${own.best.toFixed(2)}s` : ""}</span>
+            own && own.kartBest ? ` · you ${own.kartBest.toFixed(2)}s` : ""}</span>
         </span>
         <span class="track-acts">
           <button class="btn green small" onclick="App.raceSavedTrack('${t.id}')">🏁</button>
@@ -550,8 +550,8 @@ const App = {
     GK.Profiles.renderLeaderboard("lb-rows", {
       cols: (r) => `<span class="lb-stat">⭐ ${Storage.totalStars(r.progress)}</span>
         <span class="lb-stat">📓 ${(r.progress.tracks || []).length}</span>
-        <span class="lb-stat">🏆 ${r.progress.bestDaily || 0}</span>`,
-      sort: (a, b) => (b.progress.bestDaily || 0) - (a.progress.bestDaily || 0)
+        <span class="lb-stat">🏆 ${r.progress.kartBestDaily || 0}</span>`,
+      sort: (a, b) => (b.progress.kartBestDaily || 0) - (a.progress.kartBestDaily || 0)
         || Storage.totalStars(b.progress) - Storage.totalStars(a.progress),
       meId: this.profile?.id,
       empty: "No drivers yet — tap Play!",

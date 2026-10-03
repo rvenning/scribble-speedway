@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="gk-version" content="9" data-date="2026-09-14" data-kit="1.10.1">
+<meta name="gk-version" content="11" data-date="2026-10-03" data-kit="1.10.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Scribble Speedway 🏁 — Draw a Track, Then Race It</title>
 <link rel="manifest" href="manifest.json">
@@ -30,7 +30,7 @@
     <button class="btn big" id="btn-continue-as" style="display:none"></button>
     <button class="btn big green" id="btn-start" onclick="App.play()">✏️ Start Drawing</button>
     <button class="btn ghost" id="btn-install" style="display:none">📲 Add to Home Screen</button>
-    <p class="keys-hint">⌨️ Arrow keys to steer · ↓ to brake · P to pause</p>
+    <p class="keys-hint">Arrow keys to steer · Shift to drift · release for boost · ↓ to brake · P to pause</p>
     <div class="splash-foot">
       <span id="sync-badge">⏳ connecting…</span>
       <button class="btn-sound iconbtn">🔊</button>
@@ -109,6 +109,11 @@
   </header>
   <div class="game-stage" id="race-stage">
     <canvas id="cv"></canvas>
+    <div id="race-message" aria-live="polite"></div>
+    <div class="steer-guide" aria-hidden="true">← steer · steer →</div>
+    <button class="pedal steer-pedal steer-left on" id="btn-left" aria-label="Steer left">←</button>
+    <button class="pedal steer-pedal steer-right on" id="btn-right" aria-label="Steer right">→</button>
+    <button class="pedal drift-pedal on" id="btn-drift" aria-label="Hold to drift, release to boost">DRIFT</button>
     <!-- Floated INSIDE the stage, so showing or hiding a pedal never reflows
          the playfield. Split either side of centre to stay in the gentle part
          of the steering range. -->
@@ -257,7 +262,10 @@ const Tween = GK.Tween;
 <script src="js/storage.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/game.js"></script>
+<script src="js/kart.js"></script>
 <script src="js/draw.js"></script>
+<script src="vendor/three/three.min.js"></script>
+<script src="js/race3d.js"></script>
 <script src="js/render.js"></script>
 <script src="js/main.js"></script>
 </body>

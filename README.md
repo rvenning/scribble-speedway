@@ -1,5 +1,40 @@
 # Scribble Speedway 🏁
 
+## Arcade kart racing rebuild — October 2026
+
+Racing now uses Three.js, the same local library as Chicken Cross, with a
+perspective chase camera, solid karts, striped kerbs, checkpoint arches and
+scenery built around the circuit you actually drew. WebGL failure falls back
+to the canvas view. The drawing editor remains in 2D.
+
+Steering turns the kart's heading. Releasing it continues straight, so you
+drive the bends rather than sliding a car sideways while it follows the road.
+Hold **DRIFT** (or **Shift**) while steering through a bend. Blue sparks mean
+a boost is charged; gold means a stronger boost. Release to use it. Brief taps
+and drifting along a straight earn nothing. Grass slows the kart and cancels
+charging; the verge helps a stranded driver recover.
+
+On phones use the two steering arrows with the left thumb and Drift with the
+right. Sliding a finger across the race view also steers. Keyboard: left/right
+arrows or A/D, Shift to drift, down/space to brake, up/W for manual throttle,
+P to pause. Auto-brake remains available and allows a faster arc while Drift
+is held. Simulation runs at a fixed 120 steps per second.
+
+Existing drawings, stars, coins, paint and upgrades carry over. New Track Book
+times and Daily scores use separate kart record fields; classic records remain
+stored so old physics ghosts cannot become unbeatable targets in the new game.
+
+`js/kart.js` owns the rebuilt handling and rival steering, installed behind the
+existing race-state interface in `game.js`. `js/race3d.js` owns the 3D scene.
+The Three.js bundle and licence are vendored locally, cached for offline play.
+Stationary scenery and each kart body are batched; per-race geometries and
+materials are disposed when the circuit changes.
+
+Developer checks: `node --test --test-concurrency=2 tests/*.test.js`.
+`node tools/calibrate-kart.js` uses the campaign test's actual child driver to
+measure progression. `tools/race-lab.html` supplies repeatable race views and a
+600-frame geometry-count check for browser verification.
+
 Draw a racetrack with your finger. The game turns your scribble into a real
 circuit — smoothing the wobbles, opening out the corners, nudging the tarmac off
 the trees — and then you race the thing you just made.
@@ -14,10 +49,9 @@ finish, and a Daily Circuit with a clock on it for everybody else.
 - **Draw** a closed loop on the field with a finger. Trees, ponds and barns are
   in the way; golden rings have to be driven through. Let go and your drawing
   becomes tarmac.
-- **Race** it. The car drives itself forward — you steer across the track by
-  holding the left or right of the screen, and brake if you have turned the
-  auto-brake off. Take a corner too fast and you slide wide onto the grass; you
-  never crash out.
+- **Race** it. Automatic throttle lets you concentrate on turning, drifting
+  and overtaking. Brake manually or leave auto-brake on while learning. Grass
+  costs speed, and the edge helps you recover; you never crash out.
 - The **outside of a bend can be carried faster and the inside covers less
   ground**, so there is a real racing line to find on a circuit nobody has ever
   driven before.
@@ -51,10 +85,9 @@ finish, and a Daily Circuit with a clock on it for everybody else.
   turning it off is where the time is.
 - **A full classification** at the end of every race — all eight cars, gaps to
   the leader, and an estimate for anyone still on track.
-- **Grip you can lose.** Go into a corner too fast and the car runs wide, the
-  throttle cuts, and the grip you have left drops until you lift — so a slide is
-  something you drive out of rather than something that quietly costs you a
-  little speed.
+- **Drift and boost.** Hold a slide through a bend to charge a mini-turbo,
+  then release to accelerate out. A long controlled drift earns a stronger
+  boost. Tyre scrub communicates overspeed without a runaway loss of grip.
 - **Par from geometry** — the third star is measured against the fastest lap the
   circuit physically allows in a stock car, not against a fixed clock.
 - **Garage** — grip, top speed, acceleration, brakes and seven paint jobs,
@@ -82,10 +115,10 @@ No build step — plain `<script>` tags.
 |---|---|
 | `js/track.js` | **The heart.** Scribble → circuit: resample, smooth, relax, lint. Arc-length sampling, curvature, `toWorld(s, n)`, corner speed limits, the ideal-lap solver, and save/load encoding. |
 | `js/generate.js` | Seeded circuits: a radius profile composed from track features, built in polar coordinates so they cannot cross themselves, and legalised in the radius domain so the features survive. Powers "draw it for me", "fix my track" and the Daily field. |
-| `js/game.js` | The race. DOM-free, canvas-free, no `Math.random` — a car's whole state is `(s, n, v)`. |
+| `js/game.js` · `js/kart.js` | DOM-free race state, lap progression, collisions and free-heading arcade handling with drift/boost state. |
 | `js/ghost.js` | Ghost laps, sampled at 96 stations around the lap and packed into ~480 characters. |
 | `js/draw.js` | The drawing board, plus the shared `Paint` helpers both canvases use. |
-| `js/render.js` | Race view (rotating camera + minimap) and the one animation loop. |
+| `js/render.js` · `js/race3d.js` | 3D chase view, canvas fallback, controls, minimap and the fixed-step animation loop. |
 | `js/challenges.js` · `cars.js` · `upgrades.js` | Content registries. |
 | `js/storage.js` · `audio.js` · `main.js` | Persistence, sound, app shell. |
 
