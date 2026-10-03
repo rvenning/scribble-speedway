@@ -52,6 +52,19 @@ test('a real held corner drift charges and releases a boost with auto-brake enab
   }
   assert.ok(peak>=.65,`drift charged only ${peak}`);assert.ok(released,'auto-brake cancelled every drift');
 });
+test('losing drift conditions while still holding the button cancels charge without boosting', () => {
+  for(const situation of ['slow','grass','brake']) {
+    const car=start();car.v=130;Game.update(1/120);
+    car.driftHeld=true;car.driftCharge=1.8;car.driftDir=1;Game.input.drift=true;
+    if(situation==='slow')car.v=50;
+    if(situation==='grass')car.n=Game.track.halfW-2;
+    if(situation==='brake')Game.input.brake=true;
+    Game.update(1/120);
+    assert.equal(car.boosting,0,situation);
+    assert.ok(!Game.events.some(e=>e.kind==='boost'),situation);
+    assert.equal(car.driftCharge,0,situation);
+  }
+});
 test('the same driver stays stable at 60 and 120 simulation steps per second', () => {
   const run = (hz) => {
     const car = start();

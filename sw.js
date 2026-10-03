@@ -1,6 +1,6 @@
 // Scribble Speedway service worker — network-first, cache fallback.
 // BUMP the cache name on ANY shell change or devices keep serving the old build.
-const CACHE = "scribble-speedway-v11";
+const CACHE = "scribble-speedway-v12";
 const SHELL = [
   ".",
   "index.html",

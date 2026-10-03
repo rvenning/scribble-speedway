@@ -33,7 +33,7 @@ const Kart = {
       const bend = t.curvAt(car.s) * car.driftDir;
       if (bend > .0015 && Math.abs(car.yaw) > .04 && Math.abs(car.n) < t.halfW) car.driftCharge = Math.min(2.6, car.driftCharge + dt);
     } else {
-      if (car.driftHeld && car.driftCharge >= .65 && car.grass < .3 && !car.brake) {
+      if (car.driftHeld && !Game.input.drift && car.driftCharge >= .65 && car.grass < .3 && !car.brake) {
         const tier = car.driftCharge >= 1.65 ? 2 : 1;
         car.boosting = tier === 2 ? 1.45 : .85;
         if (car.isPlayer) Game.events.push({ kind: "boost", tier });
