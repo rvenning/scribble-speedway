@@ -198,7 +198,8 @@ const Game = {
 
   update(dt) {
     if (!this.running || this.paused) return;
-    dt = Math.min(0.05, dt);
+    dt = Math.max(0, Math.min(0.05, Number.isFinite(dt) ? dt : 0));
+    if (dt === 0) return;
 
     if (this.phase === "countdown") {
       this.countdown -= dt;
@@ -240,7 +241,7 @@ const Game = {
         // it aims at 90% of what each corner would actually take. A child can
         // leave it on and never slide off; anyone chasing the leaderboard turns
         // it off and finds the time. One physics, no second game.
-        if (this.needBrake(car, RULES.assist)) car.brake = true;
+        if (this.needBrake(car, this.input.drift ? 1.12 : RULES.assist)) car.brake = true;
       }
       return;
     }
@@ -587,6 +588,7 @@ const Game = {
     );
 
     const res = {
+      handling: 2,
       mode: this.mode,
       classification: this.classify(),
       challengeIdx: this.challengeIdx,

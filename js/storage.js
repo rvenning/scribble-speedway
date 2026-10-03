@@ -62,6 +62,7 @@ const PROGRESS = {
       const cur = byId.get(t.id);
       if (!cur) { byId.set(t.id, { ...t }); continue; }
       if ((t.best || 0) > 0 && (!cur.best || t.best < cur.best)) { cur.best = t.best; cur.ghost = t.ghost; }
+      if ((t.kartBest || 0) > 0 && (!cur.kartBest || t.kartBest < cur.kartBest)) { cur.kartBest = t.kartBest; cur.kartGhost = t.kartGhost; }
       cur.name = cur.name || t.name;
       cur.line = cur.line || t.line;
     }
@@ -75,6 +76,17 @@ const PROGRESS = {
       else if (b.daily.date > daily.date) daily = b.daily;
       else if (b.daily.date === daily.date && (b.daily.score || 0) > (daily.score || 0)) daily = b.daily;
     }
+    if (a.daily && b.daily && a.daily.date === b.daily.date) {
+      const kart = (a.daily.kartScore || 0) >= (b.daily.kartScore || 0) ? a.daily : b.daily;
+      if (a.daily.line !== b.daily.line) {
+        // A ghost can only be combined with a record on the same drawing.
+        // Two devices may have drawn different circuits before either synced.
+        if (kart.kartScore > 0) daily = { ...kart };
+      } else {
+        daily = { ...daily, kartScore: kart.kartScore || 0, kartTime: kart.kartTime || 0,
+          kartGhost: kart.kartGhost || null, kartPlays: Math.max(a.daily.kartPlays || 0, b.daily.kartPlays || 0) };
+      }
+    }
 
     return {
       // Spread first so a field a newer client added survives an older
@@ -83,6 +95,7 @@ const PROGRESS = {
       coinsEarned: Math.max(a.coinsEarned || 0, b.coinsEarned || 0),
       coinsSpent: Math.max(a.coinsSpent || 0, b.coinsSpent || 0),
       bestDaily: Math.max(a.bestDaily || 0, b.bestDaily || 0),
+      kartBestDaily: Math.max(a.kartBestDaily || 0, b.kartBestDaily || 0),
       dailyDays: Math.max(a.dailyDays || 0, b.dailyDays || 0),
       races_run: Math.max(a.races_run || 0, b.races_run || 0),
       skins: [...new Set([...(a.skins || []), ...(b.skins || [])])],
@@ -138,7 +151,8 @@ Object.assign(Storage, {
   // The player's own drawing for today, locked once they have raced it so the
   // ghost they chase is a lap of the SAME track.
   dailyFor(p, date) {
-    return p.daily && p.daily.date === date ? p.daily : null;
+    return p.daily && p.daily.date === date ? { ...p.daily, score: p.daily.kartScore || 0,
+      time: p.daily.kartTime || 0, ghost: p.daily.kartGhost || null, plays: p.daily.kartPlays || 0 } : null;
   },
 
   startDaily(profileId, date, lineStr) {
@@ -154,6 +168,16 @@ Object.assign(Storage, {
   recordDaily(profileId, date, res) {
     const prog = this.getProgress(profileId);
     if (!prog.daily || prog.daily.date !== date) return prog;
+    if (res.handling === 2) {
+      prog.daily.kartPlays = (prog.daily.kartPlays || 0) + 1;
+      if (res.score > (prog.daily.kartScore || 0)) {
+        prog.daily.kartScore = res.score; prog.daily.kartTime = res.time;
+        prog.daily.kartGhost = res.ghost || null;
+      }
+      prog.kartBestDaily = Math.max(prog.kartBestDaily || 0, res.score || 0);
+      prog.races_run = (prog.races_run || 0) + 1;
+      this.saveProgress(profileId, prog); return prog;
+    }
     prog.daily.plays = (prog.daily.plays || 0) + 1;
     if (res.score > (prog.daily.score || 0)) {
       prog.daily.score = res.score;
@@ -192,6 +216,13 @@ Object.assign(Storage, {
     const prog = this.getProgress(profileId);
     const t = (prog.tracks || []).find((x) => x.id === id);
     if (!t) return prog;
+    if (res.handling === 2) {
+      if (res.bestLap && (!t.kartBest || res.bestLap < t.kartBest)) {
+        t.kartBest = res.bestLap; t.kartGhost = res.ghost || null;
+      }
+      prog.races_run = (prog.races_run || 0) + 1;
+      this.saveProgress(profileId, prog); return prog;
+    }
     if (res.bestLap && (!t.best || res.bestLap < t.best)) {
       t.best = res.bestLap;
       if (res.ghost) t.ghost = res.ghost;
@@ -220,7 +251,7 @@ Object.assign(Storage, {
     const out = [];
     for (const p of this.getProfiles()) {
       const t = (this.getProgress(p.id).tracks || []).find((x) => x.id === trackId);
-      if (t && t.best > 0 && t.ghost) out.push({ profile: p, best: t.best, ghost: t.ghost });
+      if (t && t.kartBest > 0 && t.kartGhost) out.push({ profile: p, best: t.kartBest, ghost: t.kartGhost });
     }
     return out.sort((a, b) => a.best - b.best);
   },

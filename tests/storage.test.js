@@ -38,6 +38,29 @@ const S = loadScripts({
 const { PROGRESS, Storage, UPGRADES, SKINS } = S;
 const blank = () => PROGRESS.blank();
 
+test("kart records merge independently of classic records without losing drawings", () => {
+  const a = {...blank(),tracks:[{id:'drawn',line:'keep-me',best:12,ghost:'classic-a',kartBest:22,kartGhost:'kart-a'}]};
+  const b = {...blank(),tracks:[{id:'drawn',line:'keep-me',best:14,ghost:'classic-b',kartBest:20,kartGhost:'kart-b'}]};
+  for (const merged of [PROGRESS.merge(a,b),PROGRESS.merge(b,a)]) {
+    assert.equal(merged.tracks[0].line,'keep-me'); assert.equal(merged.tracks[0].best,12);
+    assert.equal(merged.tracks[0].kartBest,20); assert.equal(merged.tracks[0].kartGhost,'kart-b');
+  }
+});
+test("daily kart records survive sync with a better classic score", () => {
+  const a = {...blank(),daily:{date:'2026-10-03',line:'same-track',score:1800,kartScore:1000,kartGhost:'kart-a'}};
+  const b = {...blank(),daily:{date:'2026-10-03',line:'same-track',score:1500,kartScore:1200,kartGhost:'kart-b'}};
+  for (const merged of [PROGRESS.merge(a,b),PROGRESS.merge(b,a)]) {
+    assert.equal(merged.daily.score,1800); assert.equal(merged.daily.kartScore,1200); assert.equal(merged.daily.kartGhost,'kart-b');
+  }
+});
+test("a daily ghost never gets attached to a different device's drawing", () => {
+  const a = {...blank(),daily:{date:'2026-10-03',line:'oval',score:1800,kartScore:1000,kartGhost:'oval-ghost'}};
+  const b = {...blank(),daily:{date:'2026-10-03',line:'hairpins',score:1500,kartScore:1200,kartGhost:'hairpin-ghost'}};
+  for (const merged of [PROGRESS.merge(a,b),PROGRESS.merge(b,a)]) {
+    assert.equal(merged.daily.line,'hairpins'); assert.equal(merged.daily.kartGhost,'hairpin-ghost');
+  }
+});
+
 /* -------------------------------------------------------- the coin ledger */
 
 test("coins are a two-sided ledger, so a sync cannot refund what was spent", () => {

@@ -17,6 +17,7 @@ const Render = {
     this.cv = document.getElementById("cv");
     this.ctx = this.cv.getContext("2d");
     this.stage = document.getElementById("race-stage");
+    Race3D.boot(this.stage);
     Draw.boot();
 
     /* ------------------------------------------------------ steering --- */
@@ -29,9 +30,15 @@ const Render = {
       const f = (clientX - r.left - r.width / 2) / (r.width * 0.33);
       Game.input.steer = Math.max(-1, Math.min(1, f));
     };
-    const release = () => { Game.input.steer = 0; };
+    let steeringPointer = null;
+    const release = (e) => {
+      if (e && steeringPointer !== null && e.pointerId !== steeringPointer) return;
+      steeringPointer = null; Game.input.steer = 0;
+    };
 
     this.cv.addEventListener("pointerdown", (e) => {
+      if (steeringPointer !== null) return;
+      steeringPointer = e.pointerId;
       e.preventDefault();
       try { this.cv.setPointerCapture(e.pointerId); } catch (err) { /* not captured */ }
       Sfx.init();
@@ -40,30 +47,41 @@ const Render = {
     this.cv.addEventListener("pointermove", (e) => {
       // pressure is 0 for ordinary touch on iOS — ask what kind of pointer it
       // is instead, or every move of a real swipe is dropped.
-      if (e.pointerType === "touch" || e.buttons) { e.preventDefault(); steerFrom(e.clientX); }
-    }, { passive: false });
-    this.cv.addEventListener("touchmove", (e) => {
-      e.preventDefault();
-      if (e.touches[0]) steerFrom(e.touches[0].clientX);
+      if (e.pointerId === steeringPointer) { e.preventDefault(); steerFrom(e.clientX); }
     }, { passive: false });
     this.cv.addEventListener("pointerup", release);
     this.cv.addEventListener("pointercancel", release);
-    this.cv.addEventListener("pointerleave", release);
+    this.cv.addEventListener("lostpointercapture", release);
 
     this.bindPedal(document.getElementById("btn-brake"), (on) => { Game.input.brake = on; });
     this.bindPedal(document.getElementById("btn-throttle"), (on) => { Game.input.throttle = on ? 1 : 0; });
+    this.bindPedal(document.getElementById("btn-drift"), (on) => { Game.input.drift = on; });
+    const steering = { left: false, right: false };
+    this.bindPedal(document.getElementById("btn-left"), (on) => { steering.left = on; Game.input.steer = Number(steering.right) - Number(steering.left); });
+    this.bindPedal(document.getElementById("btn-right"), (on) => { steering.right = on; Game.input.steer = Number(steering.right) - Number(steering.left); });
 
+    const keys = new Set();
+    const keySteer = () => { Game.input.steer = Number(keys.has("ArrowRight") || keys.has("d")) - Number(keys.has("ArrowLeft") || keys.has("a")); };
     document.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowLeft" || e.key === "a") Game.input.steer = -1;
-      if (e.key === "ArrowRight" || e.key === "d") Game.input.steer = 1;
+      if (!Game.active || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
+      if (e.key === "Shift") Game.input.drift = true;
+      keys.add(e.key);
+      if (["ArrowLeft", "ArrowRight", "a", "d"].includes(e.key)) keySteer();
       if (e.key === "ArrowDown" || e.key === " ") Game.input.brake = true;
       if (e.key === "ArrowUp" || e.key === "w") Game.input.throttle = 1;
-      if (e.key === "p" || e.key === "P") { if (Game.running) (Game.paused ? Game.resume() : Game.pause()); }
+      if ((e.key === "p" || e.key === "P") && !e.repeat) { if (Game.running) (Game.paused ? Game.resume() : Game.pause()); }
     });
     document.addEventListener("keyup", (e) => {
-      if (["ArrowLeft", "ArrowRight", "a", "d"].includes(e.key)) Game.input.steer = 0;
+      keys.delete(e.key);
+      if (e.key === "Shift") Game.input.drift = false;
+      if (["ArrowLeft", "ArrowRight", "a", "d"].includes(e.key)) keySteer();
       if (e.key === "ArrowDown" || e.key === " ") Game.input.brake = false;
       if (e.key === "ArrowUp" || e.key === "w") Game.input.throttle = 0;
+    });
+    window.addEventListener("blur", () => {
+      release(); keys.clear(); steering.left = false; steering.right = false; Game.input.brake = false; Game.input.drift = false;
+      if (Game.active && Game.running && !Game.paused) Game.pause();
     });
 
     // iOS keeps a pinch zoom forever once it happens, and JS cannot reset one.
@@ -127,7 +145,7 @@ const Render = {
   /* ------------------------------------------------------------- loop -- */
 
   loop(now) {
-    const dt = Math.min(0.05, (now - this.last) / 1000 || 0);
+    const dt = Math.max(0, Math.min(0.05, (now - this.last) / 1000 || 0));
     this.last = now;
     const screen = GK.UI.screen;
     if (screen === "draw") Draw.render(dt);
@@ -146,7 +164,11 @@ const Render = {
         // frozen mid-slide kept screeching. Passing dt = 0 stops the lot.
         this.render(0);
       } else {
-        Game.update(dt);
+        this.accumulator = (this.accumulator || 0) + dt;
+        while (this.accumulator >= 1 / 120) {
+          Game.update(1 / 120); this.accumulator -= 1 / 120;
+          if (!Game.running) { this.accumulator = 0; break; }
+        }
         Fx.update(dt);
         this.drainEvents();
         this.render(dt);
@@ -163,6 +185,7 @@ const Render = {
       else if (e.kind === "lap") Sfx.lap();
       else if (e.kind === "bump") Sfx.bump();
       else if (e.kind === "wall") { Sfx.thud(); Fx.addShake(6); }
+      else if (e.kind === "boost") { Sfx.go(); }
     }
     Game.events.length = 0;
   },
@@ -180,6 +203,16 @@ const Render = {
     const pos = t.toWorld(me.s, me.n);
     const head = t.headingAt(me.s);
     const ch = Game.chapter || CHAPTERS[0];
+
+    if (Race3D.ready) {
+      Race3D.render(dt, this.W, this.H);
+      ctx.clearRect(0, 0, this.W, this.H);
+      this.minimap(ctx, t);
+      if (Game.phase === "countdown") this.countdown(ctx);
+      this.racingFeedback(me);
+      if (Engine.on) Engine.set(Math.min(1, me.v / RULES.topSpeed), me.brake ? .2 : 1 - me.grass * .5);
+      return;
+    }
 
     ctx.fillStyle = ch.grassAlt;
     ctx.fillRect(0, 0, this.W, this.H);
@@ -212,6 +245,7 @@ const Render = {
 
     this.minimap(ctx, t);
     if (Game.phase === "countdown") this.countdown(ctx);
+    this.racingFeedback(me);
 
     // The engine note follows the car rather than firing on events.
     if (Engine.on) Engine.set(Math.min(1, me.v / RULES.topSpeed), me.brake ? 0.2 : 1 - me.grass * 0.5);
@@ -227,7 +261,7 @@ const Render = {
 
     ctx.save();
     ctx.translate(p.x, p.y);
-    ctx.rotate(head + slip);
+    ctx.rotate(head + (car.yaw || 0));
     ctx.fillStyle = "rgba(0,0,0,.25)";
     ctx.fillRect(-13, -8, 30, 17);
     ctx.fillStyle = car.body;
@@ -336,6 +370,14 @@ const Render = {
 
   /* -------------------------------------------------------------- HUD -- */
 
+  racingFeedback(me) {
+    const el = document.getElementById("race-message");
+    const txt = me.boosting > 0 ? "BOOST!" : me.driftCharge >= 1.65 ? "SUPER BOOST READY · RELEASE" : me.driftCharge >= .65 ? "BOOST READY · RELEASE" : me.driftHeld ? "HOLD THE BEND…" : me.grass > .5 ? "STEER BACK TO THE ROAD" : "";
+    if (el.textContent !== txt) el.textContent = txt;
+    el.classList.toggle("boost", me.boosting > 0);
+    document.getElementById("btn-drift").classList.toggle("charged", me.driftCharge >= .65);
+  },
+
   hud() {
     const me = Game.cars[0];
     const el = (id) => document.getElementById(id);
@@ -346,7 +388,7 @@ const Render = {
     el("hud-best").textContent = Game.bestLap ? `⚡ ${Game.bestLap.toFixed(2)}` : "";
     // Only meaningful when the player owns the throttle — without a readout a
     // manual driver has no feel for where the corner limit is.
-    if (Game.manual) el("hud-speed").textContent = `🚀 ${Math.round(me.v)}`;
+    el("hud-speed").textContent = `${Math.round(me.v)} km/h`;
   },
 
   ord(n) { return n === 1 ? "1st" : n === 2 ? "2nd" : n === 3 ? "3rd" : n + "th"; },
