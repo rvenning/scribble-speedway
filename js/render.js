@@ -416,8 +416,8 @@ const Render = {
     const me = Game.cars[0], rivals = Game.cars.slice(1);
     if (!rivals.length) { el.textContent = ""; return; }
     if (Game.phase === "countdown") {
-      const rival = rivals[Math.min(rivals.length-1, Math.floor((3.2-Game.countdown)*rivals.length/3.2))];
-      el.textContent = `${rival.emoji} ${rival.name} · ${rival.personality.title}: “${rival.personality.intro}”`;
+      const rival = rivals[Math.abs(Game.challengeIdx || 0) % rivals.length];
+      el.textContent = `${rival.emoji} ${rival.name}: “${rival.personality.intro}”`;
       return;
     }
     for(const rival of rivals) {
