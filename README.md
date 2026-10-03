@@ -1,6 +1,20 @@
 # Scribble Speedway 🏁
 
-## Arcade kart racing rebuild — October 2026
+## Open racing — October 2026
+
+The numbered campaign has been replaced by an open race lobby. Choose one of
+four environments, Relaxed/Racing/Fast opponents, and a three- or five-lap race.
+Quick Race generates a fresh circuit; Draw My Circuit keeps drawing optional.
+Track Book circuits also race against seven rivals, with rematches and coins
+for the Garage. Every choice is available immediately.
+
+The playable road is 110 units wide, up from 78. The same drawing is enlarged
+by at least 40%, with a minimum lap length of about 3000 units. Three stock-car
+trials took 58–61 seconds for three laps and 95–101 seconds for five laps.
+Original drawings, paint, upgrades, coins and historical results are retained.
+Long-course lap records and Daily ghosts are kept separately from older times.
+
+## Kart racing
 
 Racing now uses Three.js, the same local library as Chicken Cross, with a
 perspective chase camera, solid karts, striped kerbs, checkpoint arches and
@@ -30,7 +44,7 @@ personalities, preferred passing sides, introductions and friendly race reaction
 Steering eases at high speed; drift entry hops and release restores grip smoothly.
 Tyre marks, sparks, a charge meter and sound cues show what the kart is doing.
 
-`js/driver-art.js` owns procedural driver models. `js/kart.js` owns the rebuilt handling and rival steering, installed behind the
+`js/race-courses.js` converts drawings to wide, longer courses. `js/driver-art.js` owns procedural driver models. `js/kart.js` owns the rebuilt handling and rival steering, installed behind the
 existing race-state interface in `game.js`. `js/race3d.js` owns the 3D scene.
 The Three.js bundle and licence are vendored locally, cached for offline play.
 Stationary scenery and each kart body are batched; per-race geometries and
@@ -47,8 +61,8 @@ the trees — and then you race the thing you just made.
 
 **Play it here: https://rvenning.github.io/scribble-speedway/**
 
-Built for Robert's daughters: an 18-challenge campaign an early reader can
-finish, and a Daily Circuit with a clock on it for everybody else.
+Built for Robert's daughters: open racing, circuits they can draw themselves,
+and a Daily time trial for the family.
 
 ## How it plays
 
@@ -66,7 +80,7 @@ finish, and a Daily Circuit with a clock on it for everybody else.
 
 | Mode | What it is |
 |---|---|
-| **Campaign** | 18 challenges across 4 chapters. Each one is a field to design a circuit for, then a **race against seven rivals** on a two-abreast grid. One star for finishing, two for a podium, three for winning under par. You start in the second row, so there are cars to chase and cars in the mirrors. |
+| **Open racing** | Choose the environment, opponent pace and lap count. Race a fresh generated circuit or draw your own. Earn coins, rematch or try another circuit. |
 | **Daily Circuit** | The same field of scenery and rings for the whole family, every day. Draw your own circuit through it — it locks once you race it — and chase your own ghost. Your score is how far under par you got, and par comes from the circuit you drew, so a big loop is no disadvantage and a small one is no cheat. |
 | **Track Book** | Save up to 12 circuits and race anybody's. Your best lap on a circuit becomes a **ghost car** for everyone else in the family — the drawing and the ghost both ride the ordinary family sync. |
 
@@ -76,7 +90,7 @@ finish, and a Daily Circuit with a clock on it for everybody else.
   obstacles and near-missed rings until the drawing is raceable. A shaky hand is
   repaired silently; only a shape that genuinely cannot be raced is refused, and
   it comes back with one friendly sentence saying which.
-- **"Draw it for me"** generates a valid circuit for any challenge, so nobody is
+- **"Draw it for me"** generates a valid circuit for the drawing field, so nobody is
   ever stuck on the drawing. Circuits are composed from features — hairpins,
   chicanes, S-bends, long sweeps and genuine straights — and the generator
   refuses any circuit where driving does not measurably beat *not* driving.
@@ -94,8 +108,8 @@ finish, and a Daily Circuit with a clock on it for everybody else.
 - **Drift and boost.** Hold a slide through a bend to charge a mini-turbo,
   then release to accelerate out. A long controlled drift earns a stronger
   boost. Tyre scrub communicates overspeed without a runaway loss of grip.
-- **Par from geometry** — the third star is measured against the fastest lap the
-  circuit physically allows in a stock car, not against a fixed clock.
+- **Daily par from geometry** — your time-trial score compares with the course
+  the circuit physically allows in a stock car, not a fixed clock.
 - **Garage** — grip, top speed, acceleration, brakes and seven paint jobs,
   bought with coins earned by racing.
 - Family profiles with PINs, a shared leaderboard, cross-device sync, and
@@ -129,6 +143,10 @@ No build step — plain `<script>` tags.
 | `js/storage.js` · `audio.js` · `main.js` | Persistence, sound, app shell. |
 
 ### Tests
+
+Legacy campaign fixtures remain as regression coverage and save compatibility;
+numbered challenges are no longer part of the app. `tests/courses.test.js` checks
+the new course size, race durations and free selection of opponent difficulty.
 
 ```
 npm test                        # 64 tests

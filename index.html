@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="gk-version" content="13" data-date="2026-10-03" data-kit="1.10.1">
+<meta name="gk-version" content="14" data-date="2026-10-03" data-kit="1.10.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Scribble Speedway 🏁 — Draw a Track, Then Race It</title>
 <link rel="manifest" href="manifest.json">
@@ -50,7 +50,7 @@
   </div>
 </div>
 
-<!-- Chapter map -->
+<!-- Open racing lobby -->
 <div class="screen" id="screen-map">
   <header class="topbar sticky">
     <button class="iconbtn" onclick="App.play()">👥</button>
@@ -60,7 +60,15 @@
     <button class="iconbtn" onclick="App.showLeaderboard()">🏆</button>
   </header>
   <div class="content">
-    <button class="btn big green wide" id="btn-continue"></button>
+    <h2 class="race-heading">Let's race!</h2>
+    <p class="race-intro">Pick your setting. Every circuit is open, with room to overtake and longer laps.</p>
+    <div class="race-options">
+      <label>Setting<select aria-label="Setting" id="race-setting" onchange="App.saveRaceOptions()"><option value="0">Sunny Meadow</option><option value="1">Sandy Cove</option><option value="2">Whispering Woods</option><option value="3">Frost Peak</option></select></label>
+      <label>Opponents<select aria-label="Opponents" id="race-difficulty" onchange="App.saveRaceOptions()"><option value="0.25">Relaxed</option><option value="0.75">Racing</option><option value="1">Fast</option></select></label>
+      <label>Race length<select aria-label="Race length" id="race-laps" onchange="App.saveRaceOptions()"><option value="3">Standard · 3 laps</option><option value="5">Long · 5 laps</option></select></label>
+    </div>
+    <button class="btn big green wide" id="btn-continue">🏁 Quick race</button>
+    <button class="btn blue wide draw-race" onclick="App.newFreeTrack()">✏️ Draw my circuit</button>
     <div class="row-btns3">
       <button class="btn blue" onclick="App.showDaily()">📅 Daily</button>
       <button class="btn blue" onclick="App.showTracks()">📓 Tracks</button>
@@ -74,7 +82,7 @@
       <input type="checkbox" id="chk-manual" onchange="App.setManual(this.checked)">
       <span><b>🚀 Manual throttle</b> — you work the accelerator as well as the brake. Two thumbs, and the fastest way round.</span>
     </label>
-    <div id="chapter-list"></div>
+
   </div>
 </div>
 
@@ -135,9 +143,8 @@
     <div class="res-stats" id="res-stats"></div>
     <div class="res-class" id="res-class"></div>
     <p class="res-note" id="res-note"></p>
-    <p class="res-finished" id="res-finished" style="display:none">👑 Every circuit drawn and every race won. You are the Scribble Speedway champion!</p>
     <div class="res-actions">
-      <button class="btn grey" onclick="App.showMap()">🗺️ Map</button>
+      <button class="btn grey" onclick="App.showMap()">🏁 Race menu</button>
       <button class="btn" id="res-retry" style="display:none"></button>
       <button class="btn green" id="res-next" style="display:none"></button>
     </div>
@@ -266,6 +273,7 @@ const Tween = GK.Tween;
 <script src="js/audio.js"></script>
 <script src="js/game.js"></script>
 <script src="js/kart.js"></script>
+<script src="js/race-courses.js"></script>
 <script src="js/draw.js"></script>
 <script src="vendor/three/three.min.js"></script>
 <script src="js/driver-art.js"></script>

@@ -86,6 +86,7 @@ const Game = {
   start(opts) {
     const t = opts.track;
     this.track = t;
+    this.handling = opts.handling || 2;
     this.mode = opts.mode || "campaign";               // campaign | daily | free
     this.challenge = opts.challenge || null;
     this.challengeIdx = opts.challengeIdx ?? -1;
@@ -125,7 +126,7 @@ const Game = {
     this.input.throttle = 1;          // or a Manual race leaks into the next Easy one
 
     const rivalCount = opts.rivals ?? (this.challenge ? this.challenge.rivals : 0);
-    const diff = this.challenge ? this.challenge.difficulty : 0.5;
+    const diff = opts.difficulty ?? (this.challenge ? this.challenge.difficulty : 0.5);
 
     // Where the player starts on the grid. NOT pole, once there is a field to
     // speak of: the camera looks forward, so a player who leads from the lights
@@ -583,12 +584,12 @@ const Game = {
     // Per rival beaten, scaled so a win on a full grid pays about what a win
     // on a small one used to. A bigger field must not quietly inflate the
     // economy — the Garage is balanced against what the progression bot earns.
-    const coins = this.mode !== "campaign" ? 0 : Math.round(
+    const coins = (this.mode !== "campaign" && this.mode !== "race") ? 0 : Math.round(
       14 + beat * 7 + (underPar ? 22 : 0) + clean * 12 + (ch ? ch.chapter * 7 : 0)
     );
 
     const res = {
-      handling: 2,
+      handling: this.handling,
       mode: this.mode,
       classification: this.classify(),
       challengeIdx: this.challengeIdx,

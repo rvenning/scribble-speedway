@@ -92,8 +92,8 @@ const Kart = {
       const outward = Math.sign(car.n);
       if (car.yaw * outward > 0) car.yaw -= outward * Math.min(Math.abs(car.yaw), dt * (Game.assist && car.isPlayer ? 2.8 : 1.8));
     }
-    if (Math.abs(car.n) > RULES.wall) {
-      car.n = Math.sign(car.n) * RULES.wall;
+    if (Math.abs(car.n) > t.halfW + 46) {
+      car.n = Math.sign(car.n) * (t.halfW + 46);
       car.yaw = -Math.sign(car.n) * .22; car.v *= .88;
       if (car.isPlayer) Game.events.push({ kind: "wall", car });
     }

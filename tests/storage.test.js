@@ -188,3 +188,25 @@ test("upgrade costs only ever go up", () => {
   }
   assert.deepEqual(bad, []);
 });
+
+test('long-course records merge without overwriting previous lap records or purchases',()=>{
+  const a={...blank(),openWins:4,wideBestDaily:1100,coinsEarned:300,coinsSpent:120,tracks:[{id:'t',line:'same',kartBest:12,kartGhost:'old',wideBest:30,wideGhost:'new-a'}]};
+  const b={...blank(),openWins:2,tracks:[{id:'t',line:'same',wideBest:28,wideGhost:'new-b'}]};
+  for(const merged of [PROGRESS.merge(a,b),PROGRESS.merge(b,a)]) {
+    assert.equal(merged.openWins,4);assert.equal(merged.wideBestDaily,1100);assert.equal(Storage.coins(merged),180);
+    assert.equal(merged.tracks[0].kartBest,12);assert.equal(merged.tracks[0].wideBest,28);assert.equal(merged.tracks[0].wideGhost,'new-b');
+  }
+});
+test('new daily ghosts stay paired with their own expanded circuit drawing',()=>{
+  const a={...blank(),daily:{date:'2026-10-03',line:'A',wideScore:1100,wideTime:60,wideGhost:'ghost-A'}};
+  const b={...blank(),daily:{date:'2026-10-03',line:'B',wideScore:1200,wideTime:58,wideGhost:'ghost-B'}};
+  const merged=PROGRESS.merge(a,b);assert.equal(merged.daily.line,'B');assert.equal(merged.daily.wideGhost,'ghost-B');
+  assert.equal(Storage.dailyFor(merged,'2026-10-03',3).score,1200);
+});
+test('an open race awards coins and a win once without adding a numbered level',()=>{
+  const p={...blank(),tracks:[{id:'t',line:'saved',kartBest:12}]};Storage.getProgress=()=>p;Storage.saveProgress=()=>{};
+  const res={mode:'race',handling:3,place:1,coins:55,bestLap:30,ghost:'wide'};
+  Storage.recordOpenRace('x',res);Storage.recordTrackLap('x','t',res);
+  assert.equal(p.races_run,1);assert.equal(p.openWins,1);assert.equal(p.coinsEarned,55);assert.deepEqual(p.races,{});
+  assert.equal(p.tracks[0].kartBest,12);assert.equal(p.tracks[0].wideBest,30);
+});

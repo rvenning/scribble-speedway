@@ -1,4 +1,4 @@
-// App shell — splash, roster, chapter map, the drawing board's three callers,
+// App shell — splash, roster, open race lobby, the drawing board's three callers,
 // the garage, the track book, the daily and the family leaderboard. Profiles,
 // PINs, sync and install all come from gamekit; this file only decides what
 // goes on each screen and what happens between a drawing and a race.
@@ -30,7 +30,7 @@ const App = {
       storage: Storage,
       avatars: AVATARS,
       meta: (p, prog) =>
-        `⭐ ${Storage.totalStars(prog)}/${CHALLENGES.length * 3} · 📓 ${(prog.tracks || []).length} · 🏆 ${prog.kartBestDaily || 0}`,
+        `🏆 ${prog.openWins || 0} ${prog.openWins===1?"win":"wins"} · 📓 ${(prog.tracks || []).length}`,
       onEnter: (p) => { this.profile = p; this.showMap(); },
       addLabel: "New Driver",
     });
@@ -39,7 +39,6 @@ const App = {
     Render.boot();
 
     GK.Debug.init({ storage: Storage, title: "SCRIBBLE SPEEDWAY" })
-      .jump("challenge", CHALLENGES.length, (n) => this.startChallenge(n - 1))
       .action("finish lap", () => { if (Game.running) Game.cars[0].raced += Game.track.len * 0.98; })
       .action("+200 coins", () => {
         const p = Storage.getProgress(this.profile.id);
@@ -139,64 +138,46 @@ const App = {
   showMap() {
     if (!this.profile) return this.play();
     const prog = this.progress();
-    const unlocked = Storage.unlocked(prog);
-
     this.el("map-player").innerHTML = `${this.profile.avatar} <b>${GK.util.esc(this.profile.name)}</b>`;
-    this.el("map-stars").textContent = `⭐ ${Storage.totalStars(prog)}`;
+    this.el("map-stars").textContent = `🏆 ${prog.openWins || 0} ${prog.openWins===1?"win":"wins"}`;
     this.el("map-coins").textContent = `🪙 ${Storage.coins(prog)}`;
-    this.syncDriving();
-
-    const cont = this.el("btn-continue");
-    cont.textContent = `✏️ ${CHALLENGES[unlocked].name}`;
-    cont.onclick = () => this.startChallenge(unlocked);
-
-    this.el("chapter-list").innerHTML = CHAPTERS.map((ch, ci) => {
-      const items = CHALLENGES.map((c, i) => ({ c, i })).filter((e) => e.c.chapter === ci);
-      const cells = items.map(({ c, i }) => {
-        const done = prog.races && prog.races[i];
-        const open = i <= unlocked;
-        const stars = done ? done.stars : 0;
-        return `<button class="ch${open ? "" : " locked"}${i === unlocked ? " next" : ""}"
-          ${open ? `onclick="App.startChallenge(${i})"` : "disabled"}
-          aria-label="${open ? `Challenge ${i + 1}, ${GK.util.esc(c.name)}, ${stars} stars` : `Challenge ${i + 1}, locked`}">
-          <span class="ch-n">${open ? i + 1 : "🔒"}</span>
-          <span class="ch-name">${open ? GK.util.esc(c.name) : "???"}</span>
-          <span class="ch-stars">${open ? "★".repeat(stars) + "☆".repeat(3 - stars) : ""}</span>
-        </button>`;
-      }).join("");
-      return `<section class="chapter" style="--cc:${ch.edge}">
-        <h3>${ch.icon} ${GK.util.esc(ch.name)}</h3>
-        <div class="ch-grid">${cells}</div>
-      </section>`;
-    }).join("");
-
-    this.showScreen("map");
+    const settings=Storage.getSettings();
+    this.el("race-setting").value=String(settings.raceSetting ?? 0);
+    this.el("race-difficulty").value=String(settings.raceDifficulty ?? .75);
+    this.el("race-laps").value=String(settings.raceLaps ?? 3);
+    this.el("btn-continue").onclick=()=>this.quickRace();
+    this.syncDriving();this.showScreen("map");
   },
 
-  /* ----------------------------- campaign -------------------------------- */
-  startChallenge(idx) {
-    Sfx.init(); Sfx.click();
-    const c = CHALLENGES[idx];
-    const spec = {
-      obstacles: c.obstacles, gates: c.gates,
-      minLen: c.minLen || MIN_LOOP, maxLen: c.maxLen || MAX_LOOP,
-      chapter: CHAPTERS[c.chapter],
-    };
-    Draw.open(spec, {
-      title: `${idx + 1}. ${c.name}`,
-      hint: c.hint,
-      onRace: (track, line) => {
-        this.pending = { line, spec, kind: "campaign" };
-        const prog = this.progress();
-        Game.start({
-          track, challenge: c, challengeIdx: idx, mode: "campaign",
-          obstacles: c.obstacles, gates: c.gates, chapter: CHAPTERS[c.chapter],
-          stats: carStats(prog), skin: Storage.skinOf(prog), assist: this.assist, manual: this.manual, manual: this.manual,
-          profile: this.profile,
-        });
-        this.enterRace();
-      },
-    });
+  raceOptions() {
+    const settings=Storage.getSettings();
+    return {chapter:CHAPTERS[Math.max(0,Math.min(3,Number(settings.raceSetting)||0))],
+      difficulty:Math.max(.25,Math.min(1,Number(settings.raceDifficulty)||.75)),
+      laps:settings.raceLaps===5?5:3};
+  },
+  saveRaceOptions() {
+    const settings=Storage.getSettings();
+    settings.raceSetting=Number(this.el("race-setting").value);
+    settings.raceDifficulty=Number(this.el("race-difficulty").value);
+    settings.raceLaps=Number(this.el("race-laps").value);Storage.saveSettings(settings);
+  },
+  quickRace() {
+    Sfx.init();Sfx.click();
+    const spec={obstacles:[],gates:[],minLen:1500,maxLen:3000,chapter:this.raceOptions().chapter};
+    const generated=Generate.solve(spec,{seed:Date.now()>>>0});
+    if(!generated?.track) {GK.UI.toast("Couldn't build that circuit. Try again.");return;}
+    this.pending={line:generated.line || generated.track.pts,spec,kind:"race"};
+    this.beginOpenRace(generated.track);
+  },
+  beginOpenRace(source) {
+    const options=this.raceOptions(),prog=this.progress();
+    const course=RaceCourses.make(source,this.pending?.spec || {});
+    Sfx.init();
+    const laps=this.pending?.trackId ? Storage.lapsOn(this.pending.trackId,3) : [];
+    const ghost=laps.length ? Ghost.decode(laps[0].ghost) : null;
+    Game.start({...course,ghost,mode:"race",handling:3,laps:options.laps,rivals:7,difficulty:options.difficulty,
+      chapter:options.chapter,stats:carStats(prog),skin:Storage.skinOf(prog),assist:this.assist,manual:this.manual,profile:this.profile});
+    this.enterRace();
   },
 
   leaveDraw() { Sfx.click(); this.showMap(); },
@@ -218,12 +199,11 @@ const App = {
     const save = this.el("res-save");
     const note = this.el("res-note");
     next.style.display = "none"; retry.style.display = "none"; save.style.display = "none";
-    this.el("res-finished").style.display = "none";
 
     const fmt = (t) => `${t.toFixed(2)}s`;
 
     // The full finishing order, Mario-Kart style. Only when there was a field
-    // to finish among — the Daily and the Track Book run without rivals.
+    // to finish among. The Daily is a solo time trial.
     const cls = this.el("res-class");
     const rows = res.classification || [];
     cls.innerHTML = rows.length > 1 ? rows.map((r) => {
@@ -239,41 +219,22 @@ const App = {
       </div>`;
     }).join("") : "";
 
-    if (res.mode === "campaign") {
-      const prog = Storage.recordRace(this.profile.id, res);
-      emoji.textContent = res.place === 1 ? "🏆" : res.stars >= 2 ? "🎉" : "🏁";
-      title.textContent = res.place === 1 ? "Winner!" : `${Render.ord(res.place)} place`;
-      stars.textContent = "★".repeat(res.stars) + "☆".repeat(3 - res.stars);
-      this.el("res-score").textContent = fmt(res.time);
-      stats.innerHTML = [
-        `⚡ best lap ${fmt(res.bestLap || 0)}`,
-        `🎯 par ${fmt(res.par)}`,
-        `🪙 ${res.coins}`,
-        `🛣️ ${Math.round(res.clean * 100)}% on track`,
-      ].map((b) => `<div>${b}</div>`).join("");
-
-      note.textContent = res.stars === 3 ? "A perfect drive on a circuit you designed. 🌟"
-        : res.place !== 1 ? "Finish first to earn the second star — try a rounder circuit, or turn off auto-brake."
-        : `Win it under par (${fmt(res.par)}) for the third star.`;
-
-      retry.style.display = "";
-      retry.textContent = "↻ Draw Again";
-      retry.onclick = () => this.startChallenge(res.challengeIdx);
-
-      const nextIdx = res.challengeIdx + 1;
-      if (nextIdx < CHALLENGES.length) {
-        next.style.display = "";
-        next.textContent = `▶️ ${CHALLENGES[nextIdx].name}`;
-        next.onclick = () => this.startChallenge(nextIdx);
-      }
-      this.el("res-finished").style.display = nextIdx >= CHALLENGES.length ? "" : "none";
-      save.style.display = "";
-
-      for (let i = 0; i < res.stars; i++) setTimeout(() => Sfx.star(i + 1), 400 + i * 260);
-      if (res.place === 1) Fx.confetti(Render.W, Render.H, ["#ffc23d", "#8ee06a", "#4d9dff", "#ff9f2e"], 60);
+    if (res.mode === "race") {
+      Storage.recordOpenRace(this.profile.id,res);
+      if(this.pending?.trackId) Storage.recordTrackLap(this.profile.id,this.pending.trackId,res);
+      emoji.textContent=res.place===1?"🏆":res.place<=3?"🎉":"🏁";
+      title.textContent=res.place===1?"Winner!":`${Render.ord(res.place)} place`;
+      stars.textContent="";this.el("res-score").textContent=`+${res.coins} coins`;
+      stats.innerHTML=[`⏱ ${fmt(res.time)}`,`⚡ best lap ${fmt(res.bestLap || 0)}`,`🏁 ${res.laps} laps`].map(b=>`<div>${b}</div>`).join("");
+      note.textContent="Race this circuit again, or try a fresh one. All settings are open.";
+      retry.style.display="";retry.textContent="↻ Rematch";
+      retry.onclick=()=>this.beginOpenRace(Track.make(this.pending.line));
+      next.style.display="";next.textContent="🎲 New circuit";next.onclick=()=>this.quickRace();
+      if(this.pending?.line && !this.pending.trackId) save.style.display="";
+      if(res.place===1) Fx.confetti(Render.W,Render.H,["#ffc23d","#8ee06a","#4d9dff"],45);
     } else if (res.mode === "daily") {
       const date = RNG.today();
-      const before = Storage.dailyFor(this.progress(), date) || {};
+      const before = Storage.dailyFor(this.progress(), date,3) || {};
       const best = res.score > (before.score || 0);
       Storage.recordDaily(this.profile.id, date, res);
       emoji.textContent = best ? "🏆" : "🏁";
@@ -325,6 +286,8 @@ const App = {
     });
     GK.UI.closeModal("modal-name");
     if (!r.ok) { GK.UI.toast("Track Book is full — delete one first"); Sfx.wrong(); return; }
+    this.pending.trackId=id;
+    if(Game.result?.handling===3) Storage.recordTrackLap(this.profile.id,id,Game.result);
     Sfx.coin();
     GK.UI.toast("Saved to the Track Book!");
     this.el("res-save").style.display = "none";
@@ -332,20 +295,9 @@ const App = {
 
   newFreeTrack() {
     Sfx.click();
-    const spec = { obstacles: [], gates: [], minLen: MIN_LOOP, maxLen: MAX_LOOP, chapter: CHAPTERS[0] };
-    Draw.open(spec, {
-      title: "New circuit",
-      hint: "An empty field — draw whatever you like.",
-      onRace: (track, line) => {
-        const id = `t${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
-        Storage.saveTrack(this.profile.id, {
-          id, name: `${this.profile.name}'s circuit`, line: Track.encode(line),
-          by: this.profile.name, byId: this.profile.id,
-        });
-        this.pending = { line, spec, kind: "free", trackId: id };
-        this.raceSavedTrack(id);
-      },
-    });
+    const spec={obstacles:[],gates:[],minLen:MIN_LOOP,maxLen:MAX_LOOP,chapter:this.raceOptions().chapter};
+    Draw.open(spec,{title:"Your circuit",hint:"Draw a loop. We'll turn it into a wider, longer race with seven rivals.",
+      onRace:(track,line)=>{this.pending={line,spec,kind:"race"};this.beginOpenRace(track);}});
   },
 
   showTracks() {
@@ -354,7 +306,7 @@ const App = {
     const mine = this.progress().tracks || [];
     this.el("track-list").innerHTML = list.length ? list.map((t) => {
       const own = mine.find((x) => x.id === t.id);
-      const laps = Storage.lapsOn(t.id);
+      const laps = Storage.lapsOn(t.id,3);
       const lead = laps[0];
       return `<div class="track-card">
         <canvas class="track-thumb" width="124" height="88" data-line="${GK.util.esc(t.line)}"></canvas>
@@ -362,14 +314,14 @@ const App = {
           <span class="track-name">${GK.util.esc(t.name)}</span>
           <span class="track-meta">${t.ownerAvatar || "🏎️"} ${GK.util.esc(t.by || t.ownerName || "")}${
             lead ? ` · ⚡ ${lead.best.toFixed(2)}s ${lead.profile.avatar}` : " · no lap yet"}${
-            own && own.kartBest ? ` · you ${own.kartBest.toFixed(2)}s` : ""}</span>
+            own && own.wideBest ? ` · you ${own.wideBest.toFixed(2)}s` : ""}</span>
         </span>
         <span class="track-acts">
           <button class="btn green small" onclick="App.raceSavedTrack('${t.id}')">🏁</button>
           ${own ? `<button class="btn grey small" onclick="App.deleteTrack('${t.id}')">🗑</button>` : ""}
         </span>
       </div>`;
-    }).join("") : `<p class="nudge">Nothing here yet. Tap ✏️ New to draw one, or save a circuit after a campaign race.</p>`;
+    }).join("") : `<p class="nudge">Nothing here yet. Tap ✏️ New to draw one, or save one after a race.</p>`;
     this.showScreen("tracks");
     // Thumbnails after the markup is in the document, so the canvases exist.
     for (const cv of document.querySelectorAll(".track-thumb")) {
@@ -400,18 +352,8 @@ const App = {
     if (!(prog.tracks || []).some((t) => t.id === id)) {
       Storage.saveTrack(this.profile.id, { id, name: entry.name, line: entry.line, by: entry.by, byId: entry.byId });
     }
-    // The ghost to chase: the quickest lap anyone in the family has set here.
-    const laps = Storage.lapsOn(id);
-    const ghost = laps.length ? Ghost.decode(laps[0].ghost) : null;
-    this.pending = { line, kind: "free", trackId: id };
-    Sfx.init(); Sfx.click();
-    Game.start({
-      track, mode: "free", laps: 3, rivals: 0,
-      obstacles: [], gates: [], chapter: CHAPTERS[0],
-      stats: carStats(prog), skin: Storage.skinOf(prog), assist: this.assist, manual: this.manual,
-      ghost, profile: this.profile,
-    });
-    this.enterRace();
+    this.pending={line,kind:"race",trackId:id};
+    Sfx.click();this.beginOpenRace(track);
   },
 
   /* --------------------------------- daily -------------------------------- */
@@ -419,7 +361,7 @@ const App = {
     Sfx.click();
     const date = RNG.today();
     const prog = this.progress();
-    const mine = Storage.dailyFor(prog, date);
+    const mine = Storage.dailyFor(prog, date,3);
     this.el("daily-date").textContent = date;
 
     this.el("daily-body").innerHTML = mine
@@ -438,7 +380,7 @@ const App = {
     // Today's family standings, from everyone's progress documents.
     const rows = [];
     for (const p of Storage.getProfiles()) {
-      const d = Storage.getProgress(p.id).daily;
+      const d = Storage.dailyFor(Storage.getProgress(p.id),date,3);
       if (d && d.date === date && d.score > 0) rows.push({ p, d });
     }
     rows.sort((a, b) => b.d.score - a.d.score);
@@ -477,15 +419,15 @@ const App = {
   raceDaily() {
     const date = RNG.today();
     const prog = this.progress();
-    const mine = Storage.dailyFor(prog, date);
+    const mine = Storage.dailyFor(prog, date,3);
     if (!mine) return this.drawDaily();
     const line = Track.decode(mine.line);
     if (!line) return this.drawDaily();
     const spec = this.dailySpec();
     Sfx.init(); Sfx.click();
     Game.start({
-      track: Track.make(line), mode: "daily", laps: 3, rivals: 0,
-      obstacles: spec.obstacles, gates: spec.gates, chapter: spec.chapter,
+      ...RaceCourses.make(Track.make(line),spec), mode: "daily", handling:3,laps:3,rivals:0,
+      chapter: spec.chapter,
       stats: carStats(prog), skin: Storage.skinOf(prog), assist: this.assist, manual: this.manual,
       ghost: mine.ghost ? Ghost.decode(mine.ghost) : null,
       profile: this.profile,
@@ -548,11 +490,11 @@ const App = {
   showLeaderboard(silent) {
     if (!silent) Sfx.click();
     GK.Profiles.renderLeaderboard("lb-rows", {
-      cols: (r) => `<span class="lb-stat">⭐ ${Storage.totalStars(r.progress)}</span>
+      cols: (r) => `<span class="lb-stat">🏆 ${r.progress.openWins || 0} wins</span>
         <span class="lb-stat">📓 ${(r.progress.tracks || []).length}</span>
-        <span class="lb-stat">🏆 ${r.progress.kartBestDaily || 0}</span>`,
-      sort: (a, b) => (b.progress.kartBestDaily || 0) - (a.progress.kartBestDaily || 0)
-        || Storage.totalStars(b.progress) - Storage.totalStars(a.progress),
+        <span class="lb-stat">🏆 ${r.progress.wideBestDaily || 0}</span>`,
+      sort: (a, b) => (b.progress.wideBestDaily || 0) - (a.progress.wideBestDaily || 0)
+        || (b.progress.openWins||0) - (a.progress.openWins||0),
       meId: this.profile?.id,
       empty: "No drivers yet — tap Play!",
     });

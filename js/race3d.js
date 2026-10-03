@@ -126,7 +126,7 @@ const Race3D = {
     root.userData = { chassis, wheels, flames, avatar, driver }; return root;
   },
   build() {
-    this.clear(); const t = Game.track, ch = Game.chapter || CHAPTERS[0];
+    this.clear(); const t = Game.track, ch = Game.chapter || CHAPTERS[0], field = t.courseField || FIELD;
     this.cameraRoll = 0; this.skidCursor = 0; this.skidCount = 0; this.lastSkidTime = -1;
     // A fixed-size ring of tyre marks costs one draw and never grows per lap.
     const skidGeometry = new THREE.BufferGeometry();
@@ -135,7 +135,7 @@ const Race3D = {
     this.skids = new THREE.Mesh(skidGeometry,new THREE.MeshBasicMaterial({color:0x25323b,transparent:true,opacity:.45,depthWrite:false,side:THREE.DoubleSide}));
     this.skids.frustumCulled = false; this.world.add(this.skids);
     this.track = t; this.cars = Game.cars; this.scene.background = new THREE.Color(0x9eddfa);
-    this.box(this.world, FIELD.w / 2, -3, FIELD.h / 2, 6000, 5, 6000, ch.grass);
+    this.box(this.world, field.w / 2, -3, field.h / 2, 6000, 5, 6000, ch.grass);
     this.ribbon(t, -t.halfW - 8, t.halfW + 8, .1, 0x518143);
     this.ribbon(t, -t.halfW, t.halfW, .4, 0x4b5964);
     this.ribbon(t, -t.halfW - 4, -t.halfW + 3, .65, 0xffffff, 0xf36d59);
@@ -173,7 +173,7 @@ const Race3D = {
     }
     // Deterministic scenery, screened against the road and authored obstacles.
     for (let i = 0; i < 75; i++) {
-      const x = ((i * 173 + 73) % (FIELD.w + 700)) - 350, z = ((i * 269 + 41) % (FIELD.h + 700)) - 350;
+      const x = ((i * 173 + 73) % (field.w + 700)) - 350, z = ((i * 269 + 41) % (field.h + 700)) - 350;
       if (t.nearest(x, z).d < t.halfW + 55) continue;
       const tree = new THREE.Mesh(new THREE.ConeGeometry(15 + i % 12, 48 + i % 24, 6), this.material(i % 2 ? 0x46916c : 0x337e64));
       tree.position.set(x, 25, z); this.world.add(tree);
