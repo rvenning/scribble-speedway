@@ -640,6 +640,7 @@ const Game = {
       return {
         place: i + 1,
         name: c.name, emoji: c.emoji, body: c.body,
+        personality: c.personality || null,
         isPlayer: !!c.isPlayer,
         finished: !!c.finished,
         time: c.finished ? c.finishTime : 0,

@@ -257,3 +257,22 @@ h3.sec { font-size: 15px; letter-spacing: .5px; text-transform: uppercase; opaci
 }
 .daily-big { font-size: 38px; font-weight: 800; color: var(--ss-sun); }
 .lb-stat { font-weight: 800; font-size: 14px; }
+
+/* Racing cues sit above the controls and below the road ahead. */
+#rival-message { position:absolute; bottom:100px; left:50%; transform:translateX(-50%); max-width:min(80%,440px); padding:7px 12px; border-radius:14px; background:rgba(15,31,43,.88); color:#fff7de; font-size:clamp(12px,2vw,15px); text-align:center; pointer-events:none; }
+#rival-message:empty { display:none; }
+#drift-meter { position:absolute; bottom:78px; left:50%; transform:translateX(-50%); width:min(180px,35%); height:7px; border-radius:8px; background:#183142; border:2px solid #ffffff80; overflow:hidden; opacity:0; pointer-events:none; }
+#drift-meter.active { opacity:1; }
+#drift-meter span { display:block; height:100%; width:0; background:#70dcff; }
+#drift-meter.super span { background:#ffcf55; }
+.rival-title { display:block; color:#465565; font-size:11px; font-weight:500; line-height:1.4; margin-top:2px; }
+.lb-name { min-width:0; }
+
+#steer-stick { position:absolute; left:16px; bottom:42px; z-index:3; width:116px; height:54px; padding:0; margin:0; appearance:none; -webkit-appearance:none; border:2px solid #ffffff90; border-radius:28px; background:#20374cd9; touch-action:none; cursor:ew-resize; }
+#steer-stick::-webkit-slider-thumb { appearance:none; -webkit-appearance:none; width:42px; height:42px; border:3px solid #f3f8fa; border-radius:50%; background:#5f9bbe; box-shadow:0 2px 6px #102334; }
+#steer-stick::-moz-range-thumb { width:36px; height:36px; border:3px solid #f3f8fa; border-radius:50%; background:#5f9bbe; }
+#steer-stick:focus-visible { outline:3px solid #ffda72; outline-offset:3px; }
+/* Keep discrete steering available to assistive technology and keyboard users. */
+.steer-pedal.on { width:1px; height:1px; clip-path:inset(50%); overflow:hidden; }
+.steer-pedal:focus-visible { clip-path:none; width:46px; height:54px; bottom:105px; }
+@media(max-width:420px) { #steer-stick { left:10px; width:108px; } }

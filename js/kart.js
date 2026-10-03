@@ -4,15 +4,20 @@
 const Kart = {
   clamp(v, a, b) { return Math.max(a, Math.min(b, v)); },
   angle(v) { return Math.atan2(Math.sin(v), Math.cos(v)); },
-  turnRate(car) { return 1.95 * Math.min(1, car.v / 95); },
+  turnRate(car) { return (1.95 - .45 * Kart.clamp((car.v - 90) / 110, 0, 1)) * Math.min(1, car.v / 80); },
   aim(car) {
     const t = Game.track;
     const look = 42 + car.v * 0.34;
     const curvature = t.curvAt(car.s + look * .7);
     let lane = Math.sign(curvature) * Math.min(1, Math.abs(curvature) * 160) * t.halfW * .64 * car.line;
-    lane += Math.sin(car.grid * 2.1) * 5;
+    lane += car.personality ? car.personality.bias : Math.sin(car.grid * 2.1) * 5;
     const block = Game.carAhead(car, 85, RULES.carW * 1.5);
-    if (block) lane = Kart.clamp(block.car.n + (block.car.n > 0 ? -1 : 1) * 29, -t.halfW * .74, t.halfW * .74);
+    if (block) {
+      // Pick a preferred side only when both gaps fit; room always wins.
+      const room = t.halfW * .74, preferred = car.personality ? car.personality.side : (block.car.n > 0 ? -1 : 1);
+      const side = Math.abs(block.car.n + preferred * 29) <= room ? preferred : -preferred;
+      lane = Kart.clamp(block.car.n + side * 29, -room, room);
+    }
     const p = t.toWorld(car.s, car.n), goal = t.toWorld(car.s + look, lane);
     const desired = Math.atan2(goal.y - p.y, goal.x - p.x);
     const actual = t.headingAt(car.s) + (car.yaw || 0);
@@ -21,12 +26,18 @@ const Kart = {
   step(car, dt) {
     const t = Game.track, clamp = Kart.clamp;
     if (car.yaw === undefined) Object.assign(car, { yaw: 0, wheel: 0, driftCharge: 0, boosting: 0, driftHeld: false, driftDir: 0 });
+    if (car.driftSlip === undefined) Object.assign(car, {driftSlip:0,hopTime:0,driftTier:0});
+    car.hopTime = Math.max(0, car.hopTime - dt);
     const oldHeading = t.headingAt(car.s);
     car.grass = clamp((Math.abs(car.n) - (t.halfW - 7)) / 18, 0, 1);
     const steer = clamp(car.steer || 0, -1, 1);
-    car.wheel += (steer - car.wheel) * (1 - Math.exp(-12 * dt));
+    car.wheel += (steer - car.wheel) * (1 - Math.exp(-(steer ? 16 : 22) * dt));
     const held = car.isPlayer && !!Game.input.drift && car.v > 65 && car.grass < .25 && !car.brake;
-    if (held && !car.driftHeld && Math.abs(steer) > .18) car.driftDir = Math.sign(steer);
+    if (held && !car.driftHeld && Math.abs(steer) > .18) {
+      car.driftDir = Math.sign(steer); car.hopTime = .32;
+      car.yaw += car.driftDir * .06;
+      if(car.isPlayer) Game.events.push({kind:"drift-start"});
+    }
     const drifting = held && car.driftDir !== 0;
     if (drifting) {
       // Charge only through a real bend in the held direction, not on straights.
@@ -40,7 +51,13 @@ const Kart = {
       }
       car.driftCharge = 0; car.driftDir = 0;
     }
+    const tier = car.driftCharge >= 1.65 ? 2 : car.driftCharge >= .65 ? 1 : 0;
+    if (tier > car.driftTier && car.isPlayer) Game.events.push({kind:"drift-ready",tier});
+    car.driftTier = tier;
     car.driftHeld = drifting;
+    // Tyres regain grip progressively on release instead of snapping travel
+    // instantly to the nose. Opposite steering opens the arc while held.
+    car.driftSlip += ((drifting ? car.driftDir * .26 : 0) - car.driftSlip) * (1 - Math.exp(-9 * dt));
     car.boosting = Math.max(0, car.boosting - dt);
     const boost = car.boosting > 0 && car.grass < .4;
     const top = car.stats.top * (1 - .57 * car.grass) * (boost ? 1.27 : 1);
@@ -52,11 +69,11 @@ const Kart = {
     // A drift turns the nose farther than the travel vector. Countersteering
     // changes the arc, and release restores grip with a short earned boost.
     let rate = car.wheel * Kart.turnRate(car) * (1 - .38 * car.grass);
-    if (drifting) rate = (car.driftDir * .34 + car.wheel * .83) * Kart.turnRate(car);
+    if (drifting) rate = (car.driftDir * .22 + car.wheel * .92) * Kart.turnRate(car);
     // Keep the nose consistent with the forward-only travel model. A held
     // button must not spin the artwork backwards while the kart moves forwards.
     const nose = oldHeading + clamp(car.yaw + rate * dt, -1.12, 1.12);
-    const slip = drifting ? car.driftDir * .24 : 0;
+    const slip = car.driftSlip;
     const travel = clamp(Kart.angle(nose - oldHeading) - slip, -1.12, 1.12);
     // Modest tyre scrub conveys pushing too hard without the old runaway
     // grip-loss cycle that dumped the car onto grass and killed its speed.

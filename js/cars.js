@@ -34,6 +34,19 @@ const RIVALS = [
   { id: "reef",   name: "Reef",    emoji: "🐬", body: "#21b5a6", trim: "#04332e" },
 ];
 
+// Friendly identities accompany each driver's established pace and braking style.
+const RIVAL_PERSONALITIES = {
+  dash: {title:"The eager sprinter",intro:"Last one there is a carrot!",pass:"Hop, hop, coming through!",behind:"Whoa! You're quick!",finish:"That was hare-raising!",side:1,bias:3},
+  tilly: {title:"The patient planner",intro:"One lovely corner at a time.",pass:"Slow and steady… then pass!",behind:"Lovely racing line!",finish:"A tidy lap is a happy lap.",side:-1,bias:-2},
+  bolt: {title:"The cheeky trickster",intro:"Got a shortcut? Just kidding!",pass:"Sneaky fox, coming through!",behind:"You caught me!",finish:"Fancy a rematch?",side:-1,bias:4},
+  pip: {title:"The cool perfectionist",intro:"Keep it cool. Keep it smooth.",pass:"Sliding into the lead!",behind:"Smooth move!",finish:"Ice-cool racing, everyone.",side:1,bias:-3},
+  moss: {title:"The cheerful explorer",intro:"Every bend is an adventure!",pass:"Ribbit! Here I come!",behind:"What a leap!",finish:"Let's hop into another race!",side:1,bias:2},
+  nib: {title:"The shy strategist",intro:"I've been practising my corners.",pass:"Excuse me… little gap here!",behind:"Ooh, I'll try that line!",finish:"That was worth coming out for.",side:-1,bias:-4},
+  zip: {title:"The bubbly busy bee",intro:"Ready, steady, bzzzz!",pass:"Buzzing past!",behind:"You're the bee's knees!",finish:"Sweet race!",side:1,bias:4},
+  reef: {title:"The laid-back surfer",intro:"Let's ride these bends!",pass:"Catching a good wave!",behind:"Nice flow!",finish:"Another lap? I'm in.",side:-1,bias:-2}
+};
+for (const rival of RIVALS) rival.personality = RIVAL_PERSONALITIES[rival.id];
+
 // pace   fraction of the car's top speed it will use
 // aggr   fraction of the corner limit it carries in — how late it brakes
 // line   how far across the track it commits to the racing line (0 = middle)

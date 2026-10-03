@@ -234,7 +234,7 @@ const App = {
       return `<div class="lb-row${r.isPlayer ? " me" : ""}${r.finished ? "" : " out"}">
         <span class="lb-rank">${r.place}</span>
         <span class="lb-avatar">${r.emoji || "🏎️"}</span>
-        <span class="lb-name">${GK.util.esc(r.name)}</span>
+        <span class="lb-name">${GK.util.esc(r.name)}${r.personality ? `<small class="rival-title">${GK.util.esc(r.personality.title)} · “${GK.util.esc(r.personality.finish)}”</small>` : ""}</span>
         <span class="lb-gap">${gap}</span>
       </div>`;
     }).join("") : "";

@@ -14,8 +14,8 @@ a boost is charged; gold means a stronger boost. Release to use it. Brief taps
 and drifting along a straight earn nothing. Grass slows the kart and cancels
 charging; the verge helps a stranded driver recover.
 
-On phones use the two steering arrows with the left thumb and Drift with the
-right. Sliding a finger across the race view also steers. Keyboard: left/right
+On phones slide the spring-centred steering control with the left thumb and
+hold Drift with the right. Sliding a finger across the race view also steers. Keyboard: left/right
 arrows or A/D, Shift to drift, down/space to brake, up/W for manual throttle,
 P to pause. Auto-brake remains available and allows a faster arc while Drift
 is held. Simulation runs at a fixed 120 steps per second.
@@ -24,7 +24,13 @@ Existing drawings, stars, coins, paint and upgrades carry over. New Track Book
 times and Daily scores use separate kart record fields; classic records remain
 stored so old physics ghosts cannot become unbeatable targets in the new game.
 
-`js/kart.js` owns the rebuilt handling and rival steering, installed behind the
+Every profile avatar has its own 3D driver, including animal ears, horns, tails
+and other silhouettes visible from behind. The eight rivals have distinct
+personalities, preferred passing sides, introductions and friendly race reactions.
+Steering eases at high speed; drift entry hops and release restores grip smoothly.
+Tyre marks, sparks, a charge meter and sound cues show what the kart is doing.
+
+`js/driver-art.js` owns procedural driver models. `js/kart.js` owns the rebuilt handling and rival steering, installed behind the
 existing race-state interface in `game.js`. `js/race3d.js` owns the 3D scene.
 The Three.js bundle and licence are vendored locally, cached for offline play.
 Stationary scenery and each kart body are batched; per-race geometries and
