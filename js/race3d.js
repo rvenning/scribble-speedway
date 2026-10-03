@@ -100,15 +100,14 @@ const Race3D = {
     const mesh = new THREE.Mesh(geo, this.material(0xffffff, { vertexColors: true, side: THREE.DoubleSide }));
     this.world.add(mesh);
   },
-  kart(body, trim, ghost = false) {
+  kart(body, trim, ghost = false, avatar = "🏎️") {
     const root = new THREE.Group(), chassis = new THREE.Group(); root.add(chassis);
     const shadow = new THREE.Mesh(new THREE.CylinderGeometry(16, 16, .2, 16), new THREE.MeshBasicMaterial({ color: 0x183225, transparent: true, opacity: .28 }));
     shadow.scale.set(1, 1, 1.35); shadow.position.y = .5; root.add(shadow);
     this.box(chassis, 0, 6, 0, 20, 6, 29, body);
     this.box(chassis, 0, 9, 9, 17, 4, 10, trim);
     this.box(chassis, 0, 10, -5, 10, 8, 8, 0x283541);
-    this.box(chassis, 0, 17, -3, 7, 7, 7, 0xffd7a8);
-    this.box(chassis, 0, 21, -3, 9, 4, 9, body);
+    const driver = DriverArt.build(this, chassis, avatar, body);
     this.box(chassis, 0, 10, -14, 25, 2, 4, trim);
     this.box(chassis, 0, 3, 16, 22, 3, 3, 0xd6e0e5);
     this.batchOpaque(chassis);
@@ -124,11 +123,18 @@ const Race3D = {
       flame.rotation.x = -Math.PI / 2; flame.position.set(x, 6, -23); chassis.add(flame); flames.push(flame);
     }
     if (ghost) root.traverse(o => { if (o.material) { o.material.transparent = true; o.material.opacity = .3; o.material.depthWrite = false; } });
-    root.userData = { chassis, wheels, flames }; return root;
+    root.userData = { chassis, wheels, flames, avatar, driver }; return root;
   },
   build() {
     this.clear(); const t = Game.track, ch = Game.chapter || CHAPTERS[0];
-    this.track = t; this.scene.background = new THREE.Color(0x9eddfa);
+    this.cameraRoll = 0; this.skidCursor = 0; this.skidCount = 0; this.lastSkidTime = -1;
+    // A fixed-size ring of tyre marks costs one draw and never grows per lap.
+    const skidGeometry = new THREE.BufferGeometry();
+    skidGeometry.setAttribute("position",new THREE.Float32BufferAttribute(new Float32Array(480*18),3));
+    skidGeometry.setDrawRange(0,0);
+    this.skids = new THREE.Mesh(skidGeometry,new THREE.MeshBasicMaterial({color:0x25323b,transparent:true,opacity:.45,depthWrite:false,side:THREE.DoubleSide}));
+    this.skids.frustumCulled = false; this.world.add(this.skids);
+    this.track = t; this.cars = Game.cars; this.scene.background = new THREE.Color(0x9eddfa);
     this.box(this.world, FIELD.w / 2, -3, FIELD.h / 2, 6000, 5, 6000, ch.grass);
     this.ribbon(t, -t.halfW - 8, t.halfW + 8, .1, 0x518143);
     this.ribbon(t, -t.halfW, t.halfW, .4, 0x4b5964);
@@ -173,29 +179,58 @@ const Race3D = {
       tree.position.set(x, 25, z); this.world.add(tree);
     }
     this.batchOpaque(this.world);
-    for (const car of Game.cars) { const model = this.kart(car.body, car.trim); this.world.add(model); this.models.push(model); }
-    this.ghost = Game.ghost ? this.kart(0xbfefff, 0xffffff, true) : null;
+    for (const car of Game.cars) { const model = this.kart(car.body, car.trim, false, car.emoji); this.world.add(model); this.models.push(model); }
+    this.ghost = Game.ghost ? this.kart(0xbfefff, 0xffffff, true, Game.cars[0].emoji) : null;
     if (this.ghost) this.world.add(this.ghost);
     const me = Game.cars[0], p = t.toWorld(me.s, me.n), head = t.headingAt(me.s);
     this.cameraHeading = head; this.camera.position.set(p.x - Math.cos(head) * 120, 76, p.y - Math.sin(head) * 120);
     this.look = new THREE.Vector3(p.x + Math.cos(head) * 90, 9, p.y + Math.sin(head) * 90);
   },
+  skidSegment(a,b) {
+    if(Math.hypot(a.x-b.x,a.z-b.z)>16) return;
+    const dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz);
+    if(len<.15) return;
+    const x=-dz/len*1.3,z=dx/len*1.3, data=this.skids.geometry.getAttribute("position");
+    const vertices=[a.x+x,.94,a.z+z,a.x-x,.94,a.z-z,b.x+x,.94,b.z+z,a.x-x,.94,a.z-z,b.x-x,.94,b.z-z,b.x+x,.94,b.z+z];
+    data.array.set(vertices,this.skidCursor*18); data.needsUpdate=true;
+    this.skidCursor=(this.skidCursor+1)%480; this.skidCount=Math.min(480,this.skidCount+1);
+    this.skids.geometry.setDrawRange(0,this.skidCount*6);
+  },
   render(dt, w, h) {
     if (!this.ready) return;
-    if (this.track !== Game.track || this.models.length !== Game.cars.length) this.build();
+    if (this.track !== Game.track || this.cars !== Game.cars || this.models.length !== Game.cars.length) this.build();
     if (this.w !== w || this.h !== h) {
       this.w = w; this.h = h; this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
     }
-    const t = Game.track, me = Game.cars[0], blend = 1 - Math.exp(-5 * dt);
+    const t = Game.track, me = Game.cars[0], blend = 1 - Math.exp(-7 * dt);
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const moving = dt > 0 && !Game.paused;
+    if (moving && Game.time-this.lastSkidTime >= .035) {
+      this.lastSkidTime = Game.time;
+      for(const car of Game.cars) {
+        if(car.sliding < .4 || car.v < 60 || car.grass > .25) { car._skidLast = null; continue; }
+        const p = t.toWorld(car.s,car.n), heading = t.headingAt(car.s)+(car.yaw||0);
+        const now = [-1,1].map(side=>({x:p.x-Math.cos(heading)*9-Math.sin(heading)*side*11,z:p.y-Math.sin(heading)*9+Math.cos(heading)*side*11}));
+        if(car._skidLast) for(let i=0;i<2;i++) this.skidSegment(car._skidLast[i],now[i]);
+        car._skidLast = now;
+      }
+    }
     Game.cars.forEach((car, i) => {
       const model = this.models[i], p = t.toWorld(car.s, car.n);
       model.position.set(p.x, 0, p.y); model.rotation.y = Math.PI / 2 - t.headingAt(car.s) - (car.yaw || 0);
-      model.userData.chassis.rotation.z = -(car.wheel || 0) * .045;
+      const hop = reduced ? 0 : Math.sin(Math.PI * Math.min(1,(car.hopTime||0)/.32)) * 3.6;
+      model.userData.chassis.position.y = hop;
+      model.userData.chassis.rotation.z = reduced ? 0 : -(car.wheel || 0) * (car.driftHeld ? .09 : .055);
+      model.userData.chassis.rotation.x = reduced ? 0 : (car.boosting > 0 ? -.025 : car.brake ? .035 : 0);
       model.userData.wheels.forEach((wheel, j) => { if (j % 2) wheel.rotation.y = (car.wheel || 0) * .35; });
       model.userData.flames.forEach(flame => {
-        flame.visible = car.boosting > 0 || car.driftCharge > .65;
-        flame.material.color.set(car.driftCharge > 1.65 ? 0xffc44c : 0x62ddff);
-        flame.scale.y = car.boosting > 0 ? 1.2 : .35;
+        const boost = car.boosting > 0, charge = car.driftCharge || 0;
+        flame.visible = boost || charge > .18;
+        flame.material.color.set(charge >= 1.65 ? 0xffc44c : charge >= .65 ? 0x62ddff : 0xdaf4ff);
+        const side = flame.position.x < 0 ? -1 : 1;
+        flame.position.set(side * (boost ? 7 : 12),boost ? 6 : 2,boost ? -23 : -10);
+        flame.rotation.x = -Math.PI/2;
+        flame.scale.set(boost ? 1 : .45,boost ? 1.25 : charge >= .65 ? .45 : .2,boost ? 1 : .45);
       });
     });
     if (this.ghost) {
@@ -205,12 +240,15 @@ const Race3D = {
     const p = t.toWorld(me.s, me.n), heading = t.headingAt(me.s) + (me.yaw || 0) * .4;
     this.cameraHeading += Kart.angle(heading - this.cameraHeading) * blend;
     const dirX = Math.cos(this.cameraHeading), dirZ = Math.sin(this.cameraHeading);
-    const behind = w < h ? 155 : 125, height = w < h ? 98 : 76;
+    const behind = w < h ? 148 : 120, height = w < h ? 90 : 70;
     this.camera.position.lerp(new THREE.Vector3(p.x - dirX * behind, height, p.y - dirZ * behind), blend);
-    this.look.lerp(new THREE.Vector3(p.x + dirX * 110, 7, p.y + dirZ * 110), blend);
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const ahead = t.toWorld(me.s + 125, me.n * .25);
+    this.look.lerp(new THREE.Vector3(ahead.x, 7, ahead.y),1-Math.exp(-9*dt));
     const fov = 62 + (reduced ? 0 : Math.min(9, me.v / RULES.topSpeed * 5 + (me.boosting > 0 ? 4 : 0)));
     this.camera.fov += (fov - this.camera.fov) * blend; this.camera.updateProjectionMatrix(); this.camera.lookAt(this.look);
+    const roll = reduced ? 0 : -(me.wheel||0) * (me.driftHeld ? .028 : .012);
+    this.cameraRoll = reduced ? 0 : this.cameraRoll + (roll-this.cameraRoll)*blend;
+    this.camera.rotation.z += this.cameraRoll;
     this.renderer.render(this.scene, this.camera);
   },
 };

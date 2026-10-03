@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="gk-version" content="12" data-date="2026-10-03" data-kit="1.10.1">
+<meta name="gk-version" content="13" data-date="2026-10-03" data-kit="1.10.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Scribble Speedway 🏁 — Draw a Track, Then Race It</title>
 <link rel="manifest" href="manifest.json">
@@ -110,7 +110,10 @@
   <div class="game-stage" id="race-stage">
     <canvas id="cv"></canvas>
     <div id="race-message" aria-live="polite"></div>
-    <div class="steer-guide" aria-hidden="true">← steer · steer →</div>
+    <div id="rival-message" aria-live="polite"></div>
+    <div id="drift-meter" aria-label="Drift boost charge"><span></span></div>
+    <label class="steer-guide" for="steer-stick">← slide to steer →</label>
+    <input id="steer-stick" type="range" min="-100" max="100" step="1" value="0" aria-label="Steering">
     <button class="pedal steer-pedal steer-left on" id="btn-left" aria-label="Steer left">←</button>
     <button class="pedal steer-pedal steer-right on" id="btn-right" aria-label="Steer right">→</button>
     <button class="pedal drift-pedal on" id="btn-drift" aria-label="Hold to drift, release to boost">DRIFT</button>
@@ -265,6 +268,7 @@ const Tween = GK.Tween;
 <script src="js/kart.js"></script>
 <script src="js/draw.js"></script>
 <script src="vendor/three/three.min.js"></script>
+<script src="js/driver-art.js"></script>
 <script src="js/race3d.js"></script>
 <script src="js/render.js"></script>
 <script src="js/main.js"></script>

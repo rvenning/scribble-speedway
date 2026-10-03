@@ -19,6 +19,12 @@ Object.assign(Sfx, {
     this.tone({ freq: 880, type: "square", dur: 0.32, vol: 0.2 });
     this.tone({ freq: 1320, type: "square", dur: 0.36, vol: 0.14, when: 0.04 });
   },
+  hop() { this.tone({freq:280,type:"triangle",dur:.10,vol:.08,slide:180}); },
+  charge(tier) { this.tone({freq:tier===2?1100:760,type:"sine",dur:.14,vol:.11,slide:160}); },
+  boost(tier) {
+    this.noise({dur:.28,vol:.08});
+    this.tone({freq:180,type:"sawtooth",dur:.3,vol:.10,slide:tier===2?500:350});
+  },
   lap() {
     this.tone({ freq: 740, type: "triangle", dur: 0.1, vol: 0.16 });
     this.tone({ freq: 988, type: "triangle", dur: 0.18, vol: 0.14, when: 0.09 });

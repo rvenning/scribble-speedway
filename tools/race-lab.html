@@ -1,6 +1,6 @@
 <!doctype html><meta charset="utf-8"><title>Scribble Speedway racing test bench</title>
-<style>body{margin:0;background:#152435;color:#eef7ff;font:14px system-ui}header{padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}button{padding:8px;border:0;border-radius:8px;background:#ffda72;color:#152435;font-weight:bold}iframe{width:100%;height:calc(100vh - 78px);border:0}output{font-size:12px}</style>
-<header><b>Racing test bench</b><button onclick="run(0)">Meadow race</button><button onclick="run(6)">Cove race</button><button onclick="run(11)">Woods race</button><button onclick="run(16)">Mountain race</button><button onclick="run(0,true)">Drift test</button><button onclick="memory()">600-frame memory check</button><output id="status">Ready</output></header>
+<style>body{height:100dvh;display:flex;flex-direction:column;margin:0;background:#152435;color:#eef7ff;font:14px system-ui}header{padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}button{padding:8px;border:0;border-radius:8px;background:#ffda72;color:#152435;font-weight:bold}iframe{width:100%;flex:1;min-height:0;border:0}output{font-size:12px;overflow-wrap:anywhere;max-width:100%}header{flex-shrink:0}header[hidden]{display:none}</style>
+<header><b>Racing test bench</b><button onclick="run(0)">Meadow race</button><button onclick="run(6)">Cove race</button><button onclick="run(11)">Woods race</button><button onclick="run(16)">Mountain race</button><button onclick="run(0,true)">Drift test</button><button onclick="bend()">Hold bend</button><button onclick="releaseBoost()">Release boost</button><button onclick="memory()">600-frame memory check</button><select id="avatar" aria-label="Driver avatar"><option>🏎️</option><option>🦊</option><option>🐰</option><option>🐱</option><option>🦄</option><option>🐼</option><option>🐸</option><option>🐥</option><option>🦖</option><option>🐙</option><option>🦉</option><option>🏁</option></select><button onclick="live()">Drive live</button><button onclick="grid()">Meet the racers</button><button onclick="document.querySelector('header').hidden=true">Full race view</button><output id="status">Ready</output></header>
 <iframe id="game" src="../index.html"></iframe>
 <script>
 const frame = document.getElementById('game'), out = document.getElementById('status');
@@ -10,7 +10,7 @@ function run(index, drift=false) {
       const challenge = CHALLENGES[${index}];
       const spec = {obstacles:challenge.obstacles,gates:challenge.gates,minLen:challenge.minLen,maxLen:challenge.maxLen};
       const generated = Generate.solve(spec,{seed:100+${index}});
-      App.profile = {id:'race-lab',name:'Test Driver',avatar:'🏎️'};
+      App.profile = {id:'race-lab',name:'Test Driver',avatar:${JSON.stringify(document.getElementById('avatar').value)}};
       Game.start({track:generated.track, challenge, challengeIdx:${index}, silent:true,assist:false,profile:App.profile});
       App.showScreen('game'); App.syncDriving(); Render.resize();
       Game.phase='race'; Game.countdown=0;
@@ -25,6 +25,35 @@ function run(index, drift=false) {
     })()`);
     out.textContent=result;
   } catch(e) {out.textContent=e.message;}
+}
+function bend() {
+  try { out.textContent=frame.contentWindow.eval(`(() => {
+    const track=Track.make(Array.from({length:160},(_,i)=>({x:350+230*Math.cos(i/160*Math.PI*2),y:500+300*Math.sin(i/160*Math.PI*2)})));
+    App.profile={id:'race-lab',name:'Test Driver',avatar:${JSON.stringify(document.getElementById('avatar').value)}};
+    Game.start({track,laps:3,rivals:7,mode:'free',silent:true,assist:true,profile:App.profile});App.showScreen('game');App.syncDriving();Render.resize();Game.phase='race';
+    const me=Game.cars[0];me.v=130;Race3D.build();let peak=0;
+    for(let i=0;i<200;i++) {Game.input.steer=Game.aim(me);Game.input.drift=true;Game.update(1/120);peak=Math.max(peak,me.driftCharge);if(i%8===0)Race3D.render(8/120,Render.W,Render.H);Game.events.length=0;}
+    Game.paused=true;Render.render(0);Render.hud();
+    return JSON.stringify({charge:me.driftCharge.toFixed(2),peak:peak.toFixed(2),offset:me.n.toFixed(1),skids:Race3D.skidCount});
+  })()`); } catch(e) {out.textContent=e.message;}
+}
+function releaseBoost() {
+  try { out.textContent=frame.contentWindow.eval(`(() => {
+    Game.paused=false;Game.input.drift=false;const me=Game.cars[0];let tier=0;
+    for(let i=0;i<20;i++) {Game.input.steer=Game.aim(me);Game.update(1/120);for(const e of Game.events)if(e.kind==='boost')tier=e.tier;Game.events.length=0;Race3D.render(1/120,Render.W,Render.H);}
+    Game.paused=true;Render.render(0);Render.hud();
+    return JSON.stringify({tier,boost:me.boosting.toFixed(2),speed:Math.round(me.v)});
+  })()`); } catch(e) {out.textContent=e.message;}
+}
+function live() {
+  run(0);
+  frame.contentWindow.eval(`Game.paused=false;Game.input.steer=0;Game.input.brake=false;Game.input.drift=false;`);
+  out.textContent="Use arrow keys and Shift in the race. P pauses.";
+}
+function grid() {
+  run(0);
+  frame.contentWindow.eval(`Game.cars.forEach((car,i)=>{car.s=Game.track.wrap(i<4?0:-40);car.n=(i%4-1.5)*24;car.yaw=0;});Race3D.build();Race3D.render(1/60,Render.W,Render.H);Render.render(0);`);
+  out.textContent="Player avatar and the rival cast";
 }
 function memory() {
   try { out.textContent=frame.contentWindow.eval(`(() => {

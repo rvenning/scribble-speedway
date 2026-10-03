@@ -77,3 +77,24 @@ test('the same driver stays stable at 60 and 120 simulation steps per second', (
   };
   const a = run(60), b = run(120); assert.ok(Math.abs(a-b)/b < .015, `${a} vs ${b}`);
 });
+
+test('high speed steering becomes gentler while low speed remains responsive',()=>{
+  const car=start();car.v=100;const low=Kart.turnRate(car);car.v=200;
+  assert.ok(Kart.turnRate(car)<low*.85);assert.ok(Kart.turnRate(car)>1);
+});
+test('a drift holds its chosen side through countersteering and releases grip smoothly',()=>{
+  const car=start();car.v=130;Game.input.steer=.6;Game.input.drift=true;Game.update(1/120);
+  assert.equal(car.driftDir,1);assert.ok(car.hopTime>0);
+  Game.input.steer=-.3;Game.update(1/120);assert.equal(car.driftDir,1);
+  const slip=car.driftSlip;Game.input.drift=false;Game.update(1/120);
+  assert.ok(car.driftSlip>0 && car.driftSlip<slip);assert.equal(car.driftHeld,false);
+});
+test('rival identities retain deterministic pace and distinct passing preferences',()=>{
+  const {rivalFor,RIVALS}=require('./load');
+  const titles=new Set();for(let i=0;i<RIVALS.length;i++) {
+    const a=rivalFor(i,.5),b=rivalFor(i,.5);assert.deepEqual(a,b);
+    assert.ok(a.personality.intro && a.personality.finish);titles.add(a.personality.title);
+  }
+  assert.equal(titles.size,RIVALS.length);
+  assert.equal(new Set(RIVALS.map(r=>r.personality.side)).size,2);
+});

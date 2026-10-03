@@ -60,6 +60,13 @@ const Render = {
     this.bindPedal(document.getElementById("btn-left"), (on) => { steering.left = on; Game.input.steer = Number(steering.right) - Number(steering.left); });
     this.bindPedal(document.getElementById("btn-right"), (on) => { steering.right = on; Game.input.steer = Number(steering.right) - Number(steering.left); });
 
+    const stick = document.getElementById("steer-stick");
+    const centerStick = () => { stick.value = "0"; Game.input.steer = 0; };
+    stick.addEventListener("input", () => { Game.input.steer = Number(stick.value)/100; });
+    stick.addEventListener("pointerdown", e => { try { stick.setPointerCapture(e.pointerId); } catch(err) {} });
+    for(const event of ["pointerup","pointercancel","lostpointercapture","blur"]) stick.addEventListener(event,centerStick);
+    window.addEventListener("blur",centerStick);
+
     const keys = new Set();
     const keySteer = () => { Game.input.steer = Number(keys.has("ArrowRight") || keys.has("d")) - Number(keys.has("ArrowLeft") || keys.has("a")); };
     document.addEventListener("keydown", (e) => {
@@ -185,7 +192,9 @@ const Render = {
       else if (e.kind === "lap") Sfx.lap();
       else if (e.kind === "bump") Sfx.bump();
       else if (e.kind === "wall") { Sfx.thud(); Fx.addShake(6); }
-      else if (e.kind === "boost") { Sfx.go(); }
+      else if (e.kind === "boost") { Sfx.boost(e.tier); }
+      else if (e.kind === "drift-start") Sfx.hop();
+      else if (e.kind === "drift-ready") Sfx.charge(e.tier);
     }
     Game.events.length = 0;
   },
@@ -207,6 +216,7 @@ const Render = {
     if (Race3D.ready) {
       Race3D.render(dt, this.W, this.H);
       ctx.clearRect(0, 0, this.W, this.H);
+      this.speedFeedback(ctx, me);
       this.minimap(ctx, t);
       if (Game.phase === "countdown") this.countdown(ctx);
       this.racingFeedback(me);
@@ -249,6 +259,21 @@ const Render = {
 
     // The engine note follows the car rather than firing on events.
     if (Engine.on) Engine.set(Math.min(1, me.v / RULES.topSpeed), me.brake ? 0.2 : 1 - me.grass * 0.5);
+  },
+
+  speedFeedback(ctx, car) {
+    if(window.matchMedia("(prefers-reduced-motion: reduce)").matches || Game.paused) return;
+    const intensity = car.boosting > 0 ? 1 : Math.max(0,(car.v/car.stats.top-.62)*1.5);
+    if(intensity < .05) return;
+    // Only the screen edges move; the road and braking point stay clear.
+    ctx.save();ctx.strokeStyle = car.boosting > 0 ? "#c6f5ff" : "#ffffff";ctx.lineWidth=2;
+    for(let i=0;i<12;i++) {
+      const a=(i/12)*Math.PI*2, phase=(this.t*(car.boosting>0?2.8:1.5)+i*.137)%1;
+      const x=this.W/2+Math.cos(a)*this.W*(.42+phase*.12),y=this.H*.55+Math.sin(a)*this.H*(.39+phase*.15);
+      ctx.globalAlpha=intensity*.32*Math.sin(phase*Math.PI);
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(a)*this.W*.06,y+Math.sin(a)*this.H*.07);ctx.stroke();
+    }
+    ctx.restore();
   },
 
   drawCar(ctx, car, isMe) {
@@ -376,6 +401,34 @@ const Render = {
     if (el.textContent !== txt) el.textContent = txt;
     el.classList.toggle("boost", me.boosting > 0);
     document.getElementById("btn-drift").classList.toggle("charged", me.driftCharge >= .65);
+    const meter = document.getElementById("drift-meter");
+    meter.classList.toggle("active", !!me.driftHeld);
+    meter.classList.toggle("super", me.driftCharge >= 1.65);
+    meter.firstElementChild.style.width = `${Math.min(100, (me.driftCharge || 0) / 1.65 * 100)}%`;
+    this.rivalFeedback();
+  },
+
+  rivalFeedback() {
+    const el = document.getElementById("rival-message");
+    if (this._rivalCars !== Game.cars) {
+      this._rivalCars = Game.cars; this._rivalUntil = 0; this._rivalLast = -10; this._rivalPlaces = new Map(); el.textContent = "";
+    }
+    const me = Game.cars[0], rivals = Game.cars.slice(1);
+    if (!rivals.length) { el.textContent = ""; return; }
+    if (Game.phase === "countdown") {
+      const rival = rivals[Math.min(rivals.length-1, Math.floor((3.2-Game.countdown)*rivals.length/3.2))];
+      el.textContent = `${rival.emoji} ${rival.name} · ${rival.personality.title}: “${rival.personality.intro}”`;
+      return;
+    }
+    for(const rival of rivals) {
+      const ahead = rival.raced > me.raced, before = this._rivalPlaces.get(rival.id);
+      if(before !== undefined && ahead !== before && Game.time-this._rivalLast > 5 && Math.abs(rival.raced-me.raced)<50) {
+        el.textContent = `${rival.emoji} ${rival.name}: “${ahead ? rival.personality.pass : rival.personality.behind}”`;
+        this._rivalUntil = Game.time + 3.2; this._rivalLast = Game.time;
+      }
+      this._rivalPlaces.set(rival.id,ahead);
+    }
+    if(Game.time > this._rivalUntil) el.textContent = "";
   },
 
   hud() {
